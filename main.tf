@@ -24,3 +24,23 @@ import {
 resource "aws_s3_bucket" "tfstate" {
   bucket = "tf-${local.account_id}"
 }
+
+resource "aws_s3_bucket_versioning" "tfstate_versioning" {
+  bucket = aws_s3_bucket.tfstate.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "tfstate_lifecycle" {
+  bucket = aws_s3_bucket.tfstate.id
+
+  rule {
+    id     = "ExpireOldVersions"
+    status = "Enabled"
+
+    noncurrent_version_expiration {
+      noncurrent_days = 90
+    }
+  }
+}
