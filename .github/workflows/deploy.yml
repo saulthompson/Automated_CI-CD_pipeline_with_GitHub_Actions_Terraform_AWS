@@ -1,0 +1,33 @@
+name: Simple Deploy
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+env:
+  AWS_DEFAULT_REGION: "us-east-1"
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID}}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+jobs:
+  apply:
+    name: Terraform apply
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Get account ID
+        run: |
+          echo "account_id=$(aws sts get-caller-identity --query Account --output text)" >> "$GITHUB_ENV"
+      - name: Create state bucket
+        run: |
+          if aws s3 ls s3://tf-"$account_id"; then
+            exit
+          else
+            aws s3 mb s3://tf-"$account_id" --no-cli-auto-prompt
+          fi
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v3
+      - name: Run Terraform
+        run: |
+          terraform init -backend-config="bucket=tf-"$account_id""
+          terraform apply -auto-approve=true
