@@ -123,7 +123,7 @@ jobs:
           }
           EOF
           TF_LOG=DEBUG terraform init -no-color || { echo "terraform init failed"; exit 1; }
-          TF_LOG=DEBUG terraform -chdir=bootstrap apply -auto-approve
+          TF_LOG=DEBUG terraform apply -auto-approve
 
   apply:
     name: Terraform Apply and Deploy
