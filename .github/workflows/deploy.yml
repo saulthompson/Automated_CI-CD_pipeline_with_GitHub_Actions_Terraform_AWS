@@ -116,11 +116,11 @@ jobs:
           }
           data "aws_caller_identity" "current" {}
           module "tfstate_s3" {
-            source     = "../modules/tfstate_s3"
+            source     = "./modules/tfstate_s3"
             account_id = data.aws_caller_identity.current.account_id
           }
           EOF
-          TF_LOG=DEBUG terraform init -no-color || { echo "terraform init failed"; exit 1; }
+          TF_LOG=DEBUG terraform init -no-color -backend=false || { echo "terraform init failed"; exit 1; }
           TF_LOG=DEBUG terraform apply -auto-approve
 
   apply:
