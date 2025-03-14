@@ -89,7 +89,7 @@ jobs:
             echo "Bucket $BUCKET_NAME does not exist"
             echo "bucket_exists=false" >> $GITHUB_OUTPUT
           fi
-          echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_OUTPUT
+          echo "bucket_name=$BUCKET_NAME" >> $GITHUB_OUTPUT
 
   bootstrap:
     name: Bootstrap Terraform State Bucket
