@@ -121,7 +121,7 @@ jobs:
           }
           EOF
           terraform init
-          terraform apply -auto-approve
+          terraform apply -auto-approve -var "bucket_name=${{ env.BUCKET_NAME }}"
 
   apply:
     name: Terraform Apply and Deploy
