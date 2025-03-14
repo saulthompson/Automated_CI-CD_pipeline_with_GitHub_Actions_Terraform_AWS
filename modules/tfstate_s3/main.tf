@@ -1,5 +1,5 @@
 resource "aws_s3_bucket" "tfstate" {
-  bucket = "tf-${local.account_id}"
+  bucket = "tf-${var.account_id}"
 }
 
 resource "aws_s3_bucket_versioning" "tfstate_versioning" {
@@ -18,7 +18,7 @@ resource "aws_s3_bucket_policy" "tfstate_bucket_policy" {
       {
         Effect = "Allow",
         Principal = {
-          AWS = "arn:aws:iam::${local.account_id}:root"
+          AWS = "arn:aws:iam::${var.account_id}:root"
         },
         Action = [
           "s3:ListBucket",
@@ -27,8 +27,8 @@ resource "aws_s3_bucket_policy" "tfstate_bucket_policy" {
           "s3:DeleteObject"
         ],
         Resource = [
-          "arn:aws:s3:::tf-${local.account_id}",
-          "arn:aws:s3:::tf-${local.account_id}/*"
+          "arn:aws:s3:::tf-${var.account_id}",
+          "arn:aws:s3:::tf-${var.account_id}/*"
         ]
       }
     ]
