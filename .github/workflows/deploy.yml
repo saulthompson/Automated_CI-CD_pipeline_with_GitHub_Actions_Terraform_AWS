@@ -67,6 +67,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       bucket_exists: ${{ steps.check.outputs.bucket_exists }}
+      bucket_name: ${{ steps.check.outputs.bucket_name }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
