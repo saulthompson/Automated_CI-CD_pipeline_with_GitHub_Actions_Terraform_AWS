@@ -7,15 +7,16 @@ provider "aws" {
 
 import {
   to = aws_s3_bucket.tfstate
-  id = "tf-${local.account_id}"
+  id = "tf-${var.account_id}"
 }
 
 resource "aws_s3_bucket" "tfstate" {
-  bucket = "tf-${local.account_id}"
+  bucket = "tf-${var.account_id}"
 }
 
 module "github_actions_integration" {
   source = "./modules/github_actions_integration"
+  github_repo = var.github_repo
 }
 
 module "cloudfront" {

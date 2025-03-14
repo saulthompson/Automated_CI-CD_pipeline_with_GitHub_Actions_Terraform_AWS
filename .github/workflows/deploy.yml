@@ -121,7 +121,7 @@ jobs:
           }
           EOF
           TF_LOG=DEBUG terraform init -no-color -backend=false || { echo "terraform init failed"; exit 1; }
-          TF_LOG=DEBUG terraform apply -auto-approve
+          TF_LOG=DEBUG terraform apply -auto-approve -var="github_repo=${{ github.repository }}" -var="account-id=${{ secrets.AWS_ACCOUNT_ID }}"
 
   apply:
     name: Terraform Apply and Deploy
