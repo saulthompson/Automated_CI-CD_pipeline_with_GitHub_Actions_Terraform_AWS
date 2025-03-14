@@ -1,8 +1,3 @@
-variable "github_repo" {
-  description = "GitHub repository in the format owner/repo"
-  type        = string
-}
-
 resource "aws_iam_role" "github_actions" {
   name = "GitHubActionsRole"
   assume_role_policy = jsonencode({
