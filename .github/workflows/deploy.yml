@@ -1,4 +1,4 @@
-name: Simple Deploy
+name: Deploy to S3
 on:
   workflow_dispatch:
   push:
@@ -42,3 +42,11 @@ jobs:
       - name: Sync files to S3
         run: |
           aws s3 sync ./ s3://my-secure-static-site --delete
+      - name: Get CloudFront Distribution ID
+        run: |
+          echo "CLOUDFRONT_DISTRIBUTION_ID=$(aws cloudfront list-distributions --query 'DistributionList.Items[?Origins.Items[0].DomainName==`${{ secrets.S3_BUCKET }}.s3.amazonaws.com`].Id' --output text)" >> "$GITHUB_ENV"
+
+      - name: Invalidate CloudFront Cache
+        run: |
+          aws cloudfront create-invalidation --distribution-id $CLOUDFRONT_DISTRIBUTION_ID --paths "/*"
+
