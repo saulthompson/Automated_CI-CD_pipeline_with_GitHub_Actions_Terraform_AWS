@@ -8,6 +8,9 @@ env:
   AWS_DEFAULT_REGION: "us-east-1"
   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID}}
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+permissions:
+  id-token: write
+  contents: read
 jobs:
   apply:
     name: Terraform apply
@@ -17,7 +20,7 @@ jobs:
         uses: actions/checkout@v4 
       - name: Get account ID
         run: |
-          echo "account_id=$(aws sts get-caller-identity --query Account --output text)" >> "$GITHUB_ENV"
+          echo "AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)" >> "$GITHUB_ENV"
       - name: Create state bucket
         run: |
           if aws s3 ls s3://tf-"$account_id"; then
@@ -25,9 +28,17 @@ jobs:
           else
             aws s3 mb s3://tf-"$account_id" --no-cli-auto-prompt
           fi
+      - name: Configure AWS credentials using OIDC
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
+          aws-region: us-east-1
       - name: Install Terraform
         uses: hashicorp/setup-terraform@v3
       - name: Run Terraform
         run: |
           terraform init -backend-config="bucket=tf-"$account_id""
           terraform apply -auto-approve=true -var "github_repo=${{ github.repository }}"
+      - name: Sync files to S3
+        run: |
+          aws s3 sync ./ s3://my-secure-static-site --delete
