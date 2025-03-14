@@ -15,12 +15,21 @@ resource "aws_cloudfront_distribution" "cdn" {
 
     forwarded_values {
       query_string = false
-      cookies { forward = "none" }
+      cookies {
+        forward = "none"
+      }
     }
   }
 
-  restrictions { geo_restriction { restriction_type = "none" } }
-  viewer_certificate { cloudfront_default_certificate = true }
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+
+  viewer_certificate {
+    cloudfront_default_certificate = true
+  }
 }
 
 output "cloudfront_url" {

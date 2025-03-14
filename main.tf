@@ -1,14 +1,14 @@
 terraform {
   backend "s3" {
-    key = "tfstate"
+    key    = "tfstate"
+    region = "us-east-1"
   }
 }
 
-provider "aws" {}
-
-
-# Below we import the state bucket made with GHA... into our own state
-# Just a quick check that everything works
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
+}
 
 data "aws_caller_identity" "current" {}
 
@@ -25,22 +25,14 @@ resource "aws_s3_bucket" "tfstate" {
   bucket = "tf-${local.account_id}"
 }
 
-resource "aws_s3_bucket_versioning" "tfstate_versioning" {
-  bucket = aws_s3_bucket.tfstate.id
-  versioning_configuration {
-    status = "Enabled"
-  }
+module "github_actions_integration" {
+  source = "./modules/github_actions_integration"
 }
 
-resource "aws_s3_bucket_lifecycle_configuration" "tfstate_lifecycle" {
-  bucket = aws_s3_bucket.tfstate.id
+module "cloudfront" {
+  source = "./modules/cloudfront"
+}
 
-  rule {
-    id     = "ExpireOldVersions"
-    status = "Enabled"
-
-    noncurrent_version_expiration {
-      noncurrent_days = 90
-    }
-  }
+module "website_s3" {
+  source = "./modules/website_s3"
 }

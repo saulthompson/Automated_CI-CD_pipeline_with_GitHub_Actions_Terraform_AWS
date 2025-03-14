@@ -24,6 +24,9 @@ resource "aws_iam_role" "github_actions" {
   })
 }
 
+# To-do - implement principle of least permissions, and pass account id as variable instead of local
+# and make sub condition configurable
+
 resource "aws_iam_policy" "github_actions_policy" {
   name        = "GitHubActionsPolicy"
   description = "Policy for GitHub Actions to deploy infrastructure"
@@ -35,7 +38,8 @@ resource "aws_iam_policy" "github_actions_policy" {
         Action   = [
           "s3:*",
           "cloudfront:*",
-          "iam:PassRole"
+          "iam:PassRole",
+          "sts:GetCallerIdentity"
         ]
         Resource = "*"
       }
