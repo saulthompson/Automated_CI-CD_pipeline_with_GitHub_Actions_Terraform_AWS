@@ -49,7 +49,7 @@ jobs:
             --url "https://token.actions.githubusercontent.com" \
             --client-id-list "sts.amazonaws.com" \
             # --thumbprint-list "6938fd4d98bab03faadb97b34396831e3780aea1"
-            
+
       - name: Create GitHub Actions Role
         run: |
           # Check if role exists
@@ -73,9 +73,8 @@ jobs:
                 }
               ]
             }
-            EOF
+      EOF
             aws iam create-role --role-name GitHubActionsRole --assume-role-policy-document file://trust-policy.json
-            # Attach AdministratorAccess policy (temporary, refine later)
             aws iam attach-role-policy --role-name GitHubActionsRole --policy-arn arn:aws:iam::aws:policy/AdministratorAccess
           else
             echo "GitHubActionsRole already exists"
