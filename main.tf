@@ -10,12 +10,6 @@ provider "aws" {
   region = "us-east-1"
 }
 
-data "aws_caller_identity" "current" {}
-
-locals {
-  account_id = data.aws_caller_identity.current.account_id
-}
-
 import {
   to = aws_s3_bucket.tfstate
   id = "tf-${local.account_id}"
