@@ -7,7 +7,7 @@ on:
       - main
 
 env:
-  AWS_REGION: "us-east-1"
+  AWS_REGION: ${{ env.AWS_REGION }}
 
 permissions:
   id-token: write
@@ -112,7 +112,7 @@ jobs:
         run: |
           cat <<EOF > bootstrap.tf
           provider "aws" {
-            region = "us-east-1"
+            region = ${{ env.AWS_REGION }}
           }
           data "aws_caller_identity" "current" {}
           module "tfstate_s3" {
