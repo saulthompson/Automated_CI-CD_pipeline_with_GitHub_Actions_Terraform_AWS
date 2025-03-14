@@ -48,7 +48,38 @@ jobs:
           aws iam create-open-id-connect-provider \
             --url "https://token.actions.githubusercontent.com" \
             --client-id-list "sts.amazonaws.com" \
-            --thumbprint-list "6938fd4d98bab03faadb97b34396831e3780aea1"
+            # --thumbprint-list "6938fd4d98bab03faadb97b34396831e3780aea1"
+            
+      - name: Create GitHub Actions Role
+        run: |
+          # Check if role exists
+          if ! aws iam get-role --role-name GitHubActionsRole 2>/dev/null; then
+            # Create role with trust policy
+            cat <<EOF > trust-policy.json
+            {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Federated": "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:oidc-provider/token.actions.githubusercontent.com"
+                  },
+                  "Action": "sts:AssumeRoleWithWebIdentity",
+                  "Condition": {
+                    "StringEquals": {
+                      "token.actions.githubusercontent.com:sub": "repo:${{ github.repository }}:ref:refs/heads/main"
+                    }
+                  }
+                }
+              ]
+            }
+            EOF
+            aws iam create-role --role-name GitHubActionsRole --assume-role-policy-document file://trust-policy.json
+            # Attach AdministratorAccess policy (temporary, refine later)
+            aws iam attach-role-policy --role-name GitHubActionsRole --policy-arn arn:aws:iam::aws:policy/AdministratorAccess
+          else
+            echo "GitHubActionsRole already exists"
+          fi
 
   check-bucket:
     name: Check Terraform State Bucket
