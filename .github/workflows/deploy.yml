@@ -14,8 +14,45 @@ permissions:
   contents: read
 
 jobs:
+  setup-oidc:
+    name: Setup OIDC Provider
+    runs-on: ubuntu-latest
+    outputs:
+      oidc_exists: ${{ steps.check-oidc.outputs.oidc_exists }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (Initial Setup)
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+        # Only runs if secrets are provided (for first deploy)
+
+      - name: Check if OIDC Provider Exists
+        id: check-oidc
+        run: |
+          if aws iam list-open-id-connect-providers | grep -q "token.actions.githubusercontent.com"; then
+            echo "OIDC provider for GitHub exists"
+            echo "oidc_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "OIDC provider for GitHub does not exist"
+            echo "oidc_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create OIDC Provider
+        if: steps.check-oidc.outputs.oidc_exists == 'false'
+        run: |
+          aws iam create-open-id-connect-provider \
+            --url "https://token.actions.githubusercontent.com" \
+            --client-id-list "sts.amazonaws.com" \
+            --thumbprint-list "6938fd4d98bab03faadb97b34396831e3780aea1"
+
   check-bucket:
     name: Check Terraform State Bucket
+    needs: setup-oidc
     runs-on: ubuntu-latest
     outputs:
       bucket_exists: ${{ steps.check.outputs.bucket_exists }}
@@ -44,7 +81,7 @@ jobs:
 
   bootstrap:
     name: Bootstrap Terraform State Bucket
-    needs: check-bucket
+    needs: [setup-oidc, check-bucket]
     if: ${{ needs.check-bucket.outputs.bucket_exists == 'false' }}
     runs-on: ubuntu-latest
     steps:
@@ -99,7 +136,7 @@ jobs:
 
       - name: Sync files to S3
         run: |
-          aws s3 sync ./ s3://my-secure-static-site --delete
+          aws s3 sync ./ s3://${{ secrets.S3_BUCKET }} --delete
 
       - name: Check CloudFront Distribution Exists
         id: check-cloudfront
@@ -113,8 +150,8 @@ jobs:
             echo "No CloudFront distribution found for ${{ secrets.S3_BUCKET }}.s3.amazonaws.com"
             echo "distribution_exists=false" >> $GITHUB_OUTPUT
           fi
-  
+
       - name: Invalidate CloudFront Cache
         if: steps.check-cloudfront.outputs.distribution_exists == 'true'
         run: |
-            aws cloudfront create-invalidation --distribution-id ${{ env.CLOUDFRONT_DISTRIBUTION_ID }} --paths "/*"
+          aws cloudfront create-invalidation --distribution-id ${{ env.CLOUDFRONT_DISTRIBUTION_ID }} --paths "/*"
