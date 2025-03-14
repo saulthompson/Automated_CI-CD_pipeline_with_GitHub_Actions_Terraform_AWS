@@ -114,7 +114,7 @@ jobs:
           cd bootstrap
           cat <<EOF > bootstrap.tf
           provider "aws" {
-            region = ${{ env.AWS_REGION }}
+            region = "${{ env.AWS_REGION }}"
           }
           data "aws_caller_identity" "current" {}
           module "tfstate_s3" {
