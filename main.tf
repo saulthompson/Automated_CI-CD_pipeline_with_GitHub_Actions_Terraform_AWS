@@ -1,9 +1,4 @@
-terraform {
-  backend "s3" {
-    key    = "tfstate"
-    region = "us-east-1"
-  }
-}
+terraform {}
 
 provider "aws" {
   alias  = "us_east_1"
