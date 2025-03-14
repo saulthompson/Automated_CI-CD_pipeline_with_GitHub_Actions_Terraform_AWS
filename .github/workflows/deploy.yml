@@ -110,18 +110,20 @@ jobs:
 
       - name: Bootstrap Terraform State Bucket
         run: |
+          mkdir -p bootstrap
           cat <<EOF > bootstrap.tf
           provider "aws" {
             region = ${{ env.AWS_REGION }}
           }
           data "aws_caller_identity" "current" {}
           module "tfstate_s3" {
-            source     = "./modules/tfstate_s3"
+            source     = "../modules/tfstate_s3"
             account_id = data.aws_caller_identity.current.account_id
           }
           EOF
-          TF_LOG=DEBUG terraform init -no-color -backend=false || { echo "terraform init failed"; exit 1; }
-          TF_LOG=DEBUG terraform apply -auto-approve -var="github_repo=${{ github.repository }}" -var="account-id=${{ secrets.AWS_ACCOUNT_ID }}"
+          cd bootstrap
+          TF_LOG=DEBUG terraform init -no-color || { echo "terraform init failed"; exit 1; }
+          TF_LOG=DEBUG terraform apply -auto-approve -var="github_repo=${{ github.repository }}" -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}"
 
   apply:
     name: Terraform Apply and Deploy
@@ -143,7 +145,7 @@ jobs:
       - name: Run Terraform
         run: |
           terraform init -backend-config="bucket=${{ env.BUCKET_NAME }}"
-          terraform apply -auto-approve -var "github_repo=${{ github.repository }}"
+          terraform apply -auto-approve -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}"
 
       - name: Sync files to S3
         run: |
