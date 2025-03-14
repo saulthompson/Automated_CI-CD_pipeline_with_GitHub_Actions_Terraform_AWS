@@ -14,8 +14,38 @@ permissions:
   contents: read
 
 jobs:
+  check-bucket:
+    name: Check Terraform State Bucket
+    runs-on: ubuntu-latest
+    outputs:
+      bucket_exists: ${{ steps.check.outputs.bucket_exists }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials using OIDC
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Check if bucket exists
+        id: check
+        run: |
+          BUCKET_NAME="tf-${{ secrets.AWS_ACCOUNT_ID }}"
+          if aws s3 ls "s3://$BUCKET_NAME" 2>/dev/null; then
+            echo "Bucket $BUCKET_NAME exists"
+            echo "bucket_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "Bucket $BUCKET_NAME does not exist"
+            echo "bucket_exists=false" >> $GITHUB_OUTPUT
+          fi
+          echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_ENV
+
   bootstrap:
     name: Bootstrap Terraform State Bucket
+    needs: check-bucket
+    if: ${{ needs.check-bucket.outputs.bucket_exists == 'false' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
@@ -32,7 +62,6 @@ jobs:
 
       - name: Bootstrap Terraform State Bucket
         run: |
-          # Temporary Terraform config to create the bucket
           cat <<EOF > bootstrap.tf
           provider "aws" {
             region = "us-east-1"
@@ -46,14 +75,9 @@ jobs:
           terraform init
           terraform apply -auto-approve
 
-      - name: Export Bucket Name
-        run: |
-          BUCKET_NAME=$(terraform output -raw bucket_name)
-          echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_ENV
-
   apply:
     name: Terraform Apply and Deploy
-    needs: bootstrap
+    needs: [check-bucket, bootstrap]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
