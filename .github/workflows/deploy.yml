@@ -88,7 +88,7 @@ jobs:
             echo "Bucket $BUCKET_NAME does not exist"
             echo "bucket_exists=false" >> $GITHUB_OUTPUT
           fi
-          echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_ENV
+          echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_OUTPUT
 
   bootstrap:
     name: Bootstrap Terraform State Bucket
@@ -122,9 +122,11 @@ jobs:
             account_id = data.aws_caller_identity.current.account_id
           }
           EOF
-          TF_LOG=DEBUG terraform init -no-color || { echo "terraform init failed"; exit 1; }
-          TF_LOG=DEBUG terraform apply -auto-approve
-
+          rm -rf .terraform terraform.tfstate*
+          terraform init -no-color || { echo "terraform init failed"; exit 1; }
+          terraform apply -auto-approve
+        env:
+          TF_LOG: DEBUG
   apply:
     name: Terraform Apply and Deploy
     needs: [check-bucket]
@@ -144,7 +146,7 @@ jobs:
 
       - name: Run Terraform
         run: |
-          terraform init -backend-config="bucket=${{ env.BUCKET_NAME }}"
+          terraform init -backend-config="bucket=${{ needs.check-bucket.outputs.bucket_name }}" -backend-config="key=state/terraform.tfstate" -backend-config="region=${{ env.AWS_REGION }}" || { echo "terraform init failed"; exit 1; }
           terraform apply -auto-approve -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}"
 
       - name: Sync files to S3
