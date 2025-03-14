@@ -116,7 +116,7 @@ jobs:
           }
           data "aws_caller_identity" "current" {}
           module "tfstate_s3" {
-            source     = "./modules/tfstate_s3"
+            source     = "../modules/tfstate_s3"
             account_id = data.aws_caller_identity.current.account_id
           }
           EOF
