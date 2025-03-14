@@ -111,6 +111,7 @@ jobs:
       - name: Bootstrap Terraform State Bucket
         run: |
           mkdir -p bootstrap
+          cd bootstrap
           cat <<EOF > bootstrap.tf
           provider "aws" {
             region = ${{ env.AWS_REGION }}
@@ -121,9 +122,8 @@ jobs:
             account_id = data.aws_caller_identity.current.account_id
           }
           EOF
-          cd bootstrap
           TF_LOG=DEBUG terraform init -no-color || { echo "terraform init failed"; exit 1; }
-          TF_LOG=DEBUG terraform apply -auto-approve -var="github_repo=${{ github.repository }}" -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}"
+          TF_LOG=DEBUG terraform -chdir=bootstrap apply -auto-approve
 
   apply:
     name: Terraform Apply and Deploy
