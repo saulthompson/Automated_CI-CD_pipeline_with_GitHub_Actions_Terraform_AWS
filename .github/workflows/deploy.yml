@@ -145,12 +145,10 @@ jobs:
       - name: Install Terraform
         uses: hashicorp/setup-terraform@v3
 
-      - name: Debug Outputs
-        run: |
-          echo "Bucket Name in apply: '${{ needs.check-bucket.outputs.bucket_name }}'"
-
       - name: Run Terraform
         run: |
+          echo "Bucket Name from check-bucket: '${{ needs.check-bucket.outputs.bucket_name }}'"
+          echo "AWS_ACCOUNT_ID: '${{ secrets.AWS_ACCOUNT_ID }}'"
           terraform init -backend-config="bucket=${{ needs.check-bucket.outputs.bucket_name }}" -backend-config="key=state/terraform.tfstate" -backend-config="region=${{ env.AWS_REGION }}" || { echo "terraform init failed"; exit 1; }
           terraform apply -auto-approve -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}"
 
