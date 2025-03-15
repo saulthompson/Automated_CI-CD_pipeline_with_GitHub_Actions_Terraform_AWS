@@ -29,10 +29,10 @@ module "github_actions_integration" {
   account_id = var.account_id
 }
 
-module "cloudfront" {
-  source = "./modules/cloudfront"
-  bucket_name = module.website_s3.bucket_name
-}
+#module "cloudfront" {
+#  source = "./modules/cloudfront"
+#  bucket_name = module.website_s3.bucket_name
+#}
 
 module "website_s3" {
   source = "./modules/website_s3"
