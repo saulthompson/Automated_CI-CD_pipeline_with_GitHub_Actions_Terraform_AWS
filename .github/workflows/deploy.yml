@@ -158,7 +158,7 @@ jobs:
             echo "Error: bucket_name is empty. Check AWS_ACCOUNT_ID secret and check-bucket job outputs."
             exit 1
           fi
-          terraform init -no-color -backend-config="bucket=${{ needs.check-bucket.outputs.bucket_name }}" -backend-config="key=state/terraform.tfstate" -backend-config="region=${{ env.AWS_REGION }}" || { echo "terraform init failed"; exit 1; }
+          terraform init -no-color -backend-config="bucket=tf-${{ secrets.AWS_ACCOUNT_ID }}" -backend-config="key=state/terraform.tfstate" -backend-config="region=${{ env.AWS_REGION }}" || { echo "terraform init failed"; exit 1; }
           terraform apply -auto-approve -no-color -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}"
         env:
           TF_LOG: DEBUG
