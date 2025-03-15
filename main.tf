@@ -1,5 +1,11 @@
 terraform {
   backend "s3" {}
+  required_providers {
+    aws = {
+      source = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
 }
 
 provider "aws" {
@@ -30,4 +36,5 @@ module "cloudfront" {
 
 module "website_s3" {
   source = "./modules/website_s3"
+  account_id = var.account_id
 }
