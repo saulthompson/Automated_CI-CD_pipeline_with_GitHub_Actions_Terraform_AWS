@@ -72,7 +72,9 @@ jobs:
       - name: Check if bucket exists
         id: check
         run: |
+          echo "AWS_ACCOUNT_ID in check-bucket: '${{ secrets.AWS_ACCOUNT_ID }}'"
           BUCKET_NAME="tf-${{ secrets.AWS_ACCOUNT_ID }}"
+          echo "Computed BUCKET_NAME: '$BUCKET_NAME'"
           echo "Checking bucket: $BUCKET_NAME"
           if aws s3 ls "s3://$BUCKET_NAME" 2>/dev/null; then
             echo "Bucket $BUCKET_NAME exists"
@@ -81,8 +83,10 @@ jobs:
             echo "Bucket $BUCKET_NAME does not exist"
             echo "bucket_exists=false" >> $GITHUB_OUTPUT
           fi
+          echo "Setting bucket_name output..."
           echo "bucket_name=$BUCKET_NAME" >> $GITHUB_OUTPUT
-          echo "Set bucket_name output to: $BUCKET_NAME"
+          echo "Wrote bucket_name=$BUCKET_NAME to GITHUB_OUTPUT"
+          cat $GITHUB_OUTPUT
 
   bootstrap:
     name: Bootstrap Terraform State Bucket
