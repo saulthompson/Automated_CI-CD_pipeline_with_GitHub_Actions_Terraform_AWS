@@ -2,6 +2,10 @@ resource "aws_cloudfront_distribution" "cdn" {
   origin {
     domain_name = var.bucket_name
     origin_id   = "S3-${var.bucket_name}"
+
+    s3_origin_config {
+      origin_access_identity = ""  # Empty for public buckets; use OAI if private
+    }
   }
 
   enabled             = true
@@ -11,7 +15,7 @@ resource "aws_cloudfront_distribution" "cdn" {
     viewer_protocol_policy = "redirect-to-https"
     allowed_methods        = ["GET", "HEAD"]
     cached_methods         = ["GET", "HEAD"]
-    target_origin_id       = "S3-${website_s3.static_site.id}"
+    target_origin_id       = "S3-${var.bucket_name}"
 
     forwarded_values {
       query_string = false
