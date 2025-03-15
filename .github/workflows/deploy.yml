@@ -123,6 +123,16 @@ jobs:
         env:
           TF_LOG: DEBUG
 
+  debug-outputs:
+    name: Debug Check-Bucket Outputs
+    needs: [check-bucket]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Echo Outputs
+        run: |
+          echo "Bucket Exists: '${{ needs.check-bucket.outputs.bucket_exists }}'"
+          echo "Bucket Name: '${{ needs.check-bucket.outputs.bucket_name }}'"
+
   apply:
     name: Terraform Apply and Deploy
     needs: [check-bucket]
