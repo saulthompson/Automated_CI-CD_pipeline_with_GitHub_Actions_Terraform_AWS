@@ -7,7 +7,7 @@ on:
       - main
 
 env:
-  AWS_REGION: 'us-east-1'
+  AWS_REGION: "us-east-1"
 
 permissions:
   id-token: write
@@ -22,15 +22,12 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
-
       - name: Configure AWS credentials (Initial Setup)
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-        # Only runs if secrets are provided (for first deploy)
-
       - name: Check if OIDC Provider Exists
         id: check-oidc
         run: |
@@ -41,19 +38,15 @@ jobs:
             echo "OIDC provider for GitHub does not exist"
             echo "oidc_exists=false" >> $GITHUB_OUTPUT
           fi
-
       - name: Create OIDC Provider
         if: steps.check-oidc.outputs.oidc_exists == 'false'
         run: |
           aws iam create-open-id-connect-provider \
             --url "https://token.actions.githubusercontent.com" \
-            --client-id-list "sts.amazonaws.com" \
-
+            --client-id-list "sts.amazonaws.com"
       - name: Create GitHub Actions Role
         run: |
-          # Check if role exists
           if ! aws iam get-role --role-name GitHubActionsRole 2>/dev/null; then
-            # Create role with trust policy
             echo '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Federated":"arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:oidc-provider/token.actions.githubusercontent.com"},"Action":"sts:AssumeRoleWithWebIdentity","Condition":{"StringEquals":{"token.actions.githubusercontent.com:sub":"repo:${{ github.repository }}:ref:refs/heads/main"}}}]}' > trust-policy.json
             aws iam create-role --role-name GitHubActionsRole --assume-role-policy-document file://trust-policy.json
             aws iam attach-role-policy --role-name GitHubActionsRole --policy-arn arn:aws:iam::aws:policy/AdministratorAccess
@@ -71,17 +64,16 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
-
       - name: Configure AWS credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
           aws-region: ${{ env.AWS_REGION }}
-
       - name: Check if bucket exists
         id: check
         run: |
           BUCKET_NAME="tf-${{ secrets.AWS_ACCOUNT_ID }}"
+          echo "Checking bucket: $BUCKET_NAME"
           if aws s3 ls "s3://$BUCKET_NAME" 2>/dev/null; then
             echo "Bucket $BUCKET_NAME exists"
             echo "bucket_exists=true" >> $GITHUB_OUTPUT
@@ -90,6 +82,7 @@ jobs:
             echo "bucket_exists=false" >> $GITHUB_OUTPUT
           fi
           echo "bucket_name=$BUCKET_NAME" >> $GITHUB_OUTPUT
+          echo "Set bucket_name output to: $BUCKET_NAME"
 
   bootstrap:
     name: Bootstrap Terraform State Bucket
@@ -99,16 +92,13 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
-
       - name: Configure AWS credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
           aws-region: ${{ env.AWS_REGION }}
-
       - name: Install Terraform
         uses: hashicorp/setup-terraform@v3
-
       - name: Bootstrap Terraform State Bucket
         run: |
           mkdir -p bootstrap
@@ -125,9 +115,10 @@ jobs:
           EOF
           rm -rf .terraform terraform.tfstate*
           terraform init -no-color || { echo "terraform init failed"; exit 1; }
-          terraform apply -auto-approve
+          terraform apply -auto-approve -no-color
         env:
           TF_LOG: DEBUG
+
   apply:
     name: Terraform Apply and Deploy
     needs: [check-bucket]
@@ -135,27 +126,28 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
-
       - name: Configure AWS credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
           aws-region: ${{ env.AWS_REGION }}
-
       - name: Install Terraform
         uses: hashicorp/setup-terraform@v3
-
       - name: Run Terraform
         run: |
           echo "Bucket Name from check-bucket: '${{ needs.check-bucket.outputs.bucket_name }}'"
           echo "AWS_ACCOUNT_ID: '${{ secrets.AWS_ACCOUNT_ID }}'"
-          terraform init -backend-config="bucket=${{ needs.check-bucket.outputs.bucket_name }}" -backend-config="key=state/terraform.tfstate" -backend-config="region=${{ env.AWS_REGION }}" || { echo "terraform init failed"; exit 1; }
-          terraform apply -auto-approve -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}"
-
+          if [ -z "${{ needs.check-bucket.outputs.bucket_name }}" ]; then
+            echo "Error: bucket_name is empty. Check AWS_ACCOUNT_ID secret and check-bucket job outputs."
+            exit 1
+          fi
+          terraform init -no-color -backend-config="bucket=${{ needs.check-bucket.outputs.bucket_name }}" -backend-config="key=state/terraform.tfstate" -backend-config="region=${{ env.AWS_REGION }}" || { echo "terraform init failed"; exit 1; }
+          terraform apply -auto-approve -no-color -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}"
+        env:
+          TF_LOG: DEBUG
       - name: Sync files to S3
         run: |
           aws s3 sync ./ s3://${{ secrets.S3_BUCKET }} --delete
-
       - name: Check CloudFront Distribution Exists
         id: check-cloudfront
         run: |
@@ -168,7 +160,6 @@ jobs:
             echo "No CloudFront distribution found for ${{ secrets.S3_BUCKET }}.s3.amazonaws.com"
             echo "distribution_exists=false" >> $GITHUB_OUTPUT
           fi
-
       - name: Invalidate CloudFront Cache
         if: steps.check-cloudfront.outputs.distribution_exists == 'true'
         run: |
