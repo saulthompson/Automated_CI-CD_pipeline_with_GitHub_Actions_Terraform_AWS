@@ -84,7 +84,6 @@ jobs:
             echo "bucket_exists=false" >> "$GITHUB_OUTPUT"
           fi
           echo "Setting bucket_name output..."
-          # Use multi-line delimiter syntax for clarity
           echo "bucket_name<<EOF" >> "$GITHUB_OUTPUT"
           echo "$BUCKET_NAME" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
@@ -152,13 +151,19 @@ jobs:
         uses: hashicorp/setup-terraform@v3
       - name: Run Terraform
         run: |
-          echo "Bucket Name from check-bucket: '${{ needs.check-bucket.outputs.bucket_name }}'"
+          echo "Running apply job - v2 - timestamp: $(date +%s)"
+          BUCKET_NAME_FROM_OUTPUT="${{ needs.check-bucket.outputs.bucket_name }}"
+          echo "Bucket Name from check-bucket: '$BUCKET_NAME_FROM_OUTPUT'"
           echo "AWS_ACCOUNT_ID: '${{ secrets.AWS_ACCOUNT_ID }}'"
-          if [ -z "${{ needs.check-bucket.outputs.bucket_name }}" ]; then
-            echo "Error: bucket_name is empty. Check AWS_ACCOUNT_ID secret and check-bucket job outputs."
-            exit 1
+          if [ -z "$BUCKET_NAME_FROM_OUTPUT" ]; then
+            echo "Error: bucket_name is empty. Falling back to computed value."
+            BUCKET_NAME_FALLBACK="tf-${{ secrets.AWS_ACCOUNT_ID }}"
+            echo "Using fallback bucket name: '$BUCKET_NAME_FALLBACK'"
+          else
+            BUCKET_NAME_FALLBACK="$BUCKET_NAME_FROM_OUTPUT"
+            echo "Using output bucket name: '$BUCKET_NAME_FALLBACK'"
           fi
-          terraform init -no-color -backend-config="bucket=tf-${{ secrets.AWS_ACCOUNT_ID }}" -backend-config="key=state/terraform.tfstate" -backend-config="region=${{ env.AWS_REGION }}" || { echo "terraform init failed"; exit 1; }
+          terraform init -no-color -backend-config="bucket=$BUCKET_NAME_FALLBACK" -backend-config="key=state/terraform.tfstate" -backend-config="region=${{ env.AWS_REGION }}" || { echo "terraform init failed"; exit 1; }
           terraform apply -auto-approve -no-color -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}"
         env:
           TF_LOG: DEBUG
