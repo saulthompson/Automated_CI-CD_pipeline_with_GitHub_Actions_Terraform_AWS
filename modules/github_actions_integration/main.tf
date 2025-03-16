@@ -27,7 +27,12 @@ resource "aws_iam_policy" "github_actions_policy" {
       {
         Effect   = "Allow"
         Action   = ["s3:ListBucket", "s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:PutBucketPolicy"]
-        Resource = [var.bucket_arn, "${var.bucket_arn}/*"]
+        Resource = Resource = [
+          var.bucket_arn,           # tf-***
+          "${var.bucket_arn}/*",
+          "arn:aws:s3:::my-static-site-${var.account_id}",  # website bucket
+          "arn:aws:s3:::my-static-site-${var.account_id}/*"
+        ]
       },
       {
         Effect   = "Allow"
