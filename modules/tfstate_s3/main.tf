@@ -1,5 +1,5 @@
 resource "aws_s3_bucket" "tfstate" {
-  bucket = "tf-${var.account_id}"
+  bucket = "tfs-${var.account_id}"
 }
 
 resource "aws_s3_bucket_versioning" "tfstate_versioning" {
@@ -27,8 +27,8 @@ resource "aws_s3_bucket_policy" "tfstate_bucket_policy" {
           "s3:DeleteObject"
         ],
         Resource = [
-          "arn:aws:s3:::tf-${var.account_id}",
-          "arn:aws:s3:::tf-${var.account_id}/*"
+          "arn:aws:s3:::tfs-${var.account_id}",
+          "arn:aws:s3:::tfs-${var.account_id}/*"
         ]
       }
     ]

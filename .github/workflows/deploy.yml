@@ -37,7 +37,7 @@ jobs:
           mkdir -p bootstrap
           cd bootstrap
           
-          BUCKET_NAME="tf-${{ secrets.AWS_ACCOUNT_ID }}"
+          BUCKET_NAME="tfs-${{ secrets.AWS_ACCOUNT_ID }}"
           WEBSITE_BUCKET="my-static-site-${{ secrets.AWS_ACCOUNT_ID }}"
           
           echo "Removing existing resources..."
@@ -125,7 +125,7 @@ jobs:
       - name: Run Terraform
         run: |
           echo "Running apply job - v3 - timestamp: $(date +%s)"
-          BUCKET_NAME="tf-${{ secrets.AWS_ACCOUNT_ID }}"
+          BUCKET_NAME="tfs-${{ secrets.AWS_ACCOUNT_ID }}"
           terraform init -no-color -backend-config="bucket=$BUCKET_NAME" -backend-config="key=state/terraform.tfstate" -backend-config="region=${{ env.AWS_REGION }}" || { echo "terraform init failed"; exit 1; }
           terraform apply -auto-approve -no-color -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}"
         env:
