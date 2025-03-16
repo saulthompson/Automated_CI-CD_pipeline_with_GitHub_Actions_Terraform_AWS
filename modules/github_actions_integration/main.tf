@@ -39,7 +39,7 @@ resource "aws_iam_policy" "github_actions_policy" {
 
 resource "aws_iam_role_policy_attachment" "github_actions_attach" {
   role       = aws_iam_role.github_actions.name
-  policy_arn = try(data.aws_iam_policy.github_actions_policy_existing[0].arn, null) == null ? aws_iam_policy.github_actions_policy[0].arn : data.aws_iam_policy.github_actions_policy_existing[0].arn
+  policy_arn = aws_iam_policy.github_actions_policy.arn
 }
 
 resource "aws_iam_policy" "github_s3_upload" {
