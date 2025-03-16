@@ -97,7 +97,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+      uses: actions/checkout@v4
       - name: Configure AWS credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -113,9 +113,31 @@ jobs:
           # Define bucket name
           BUCKET_NAME="tf-${{ secrets.AWS_ACCOUNT_ID }}"
           
-          # Delete existing bucket and state (force removal even if not empty)
+          # Delete existing bucket
           echo "Removing existing bucket $BUCKET_NAME if it exists..."
-          aws s3 rb "s3://$BUCKET_NAME" --force || echo "Bucket $BUCKET_NAME not found or already deleted"
+          if aws s3 ls "s3://$BUCKET_NAME" 2>/dev/null; then
+            aws s3 rb "s3://$BUCKET_NAME" --force || { echo "Failed to delete bucket $BUCKET_NAME"; exit 1; }
+            
+            # Wait until bucket is fully deleted
+            echo "Verifying bucket deletion..."
+            ATTEMPTS=10
+            DELAY=5
+            for ((i=1; i<=$ATTEMPTS; i++)); do
+              if aws s3 ls "s3://$BUCKET_NAME" 2>/dev/null; then
+                echo "Bucket $BUCKET_NAME still exists, waiting $DELAY seconds (attempt $i/$ATTEMPTS)..."
+                sleep $DELAY
+              else
+                echo "Bucket $BUCKET_NAME successfully deleted"
+                break
+              fi
+            done
+            if [ $i -gt $ATTEMPTS ]; then
+              echo "Error: Bucket $BUCKET_NAME still exists after $ATTEMPTS attempts"
+              exit 1
+            fi
+          else
+            echo "Bucket $BUCKET_NAME does not exist, proceeding..."
+          fi
           
           # Define bootstrap config
           cat <<EOF > bootstrap.tf
