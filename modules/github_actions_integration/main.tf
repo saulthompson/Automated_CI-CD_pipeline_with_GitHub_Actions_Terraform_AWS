@@ -1,5 +1,4 @@
 resource "aws_iam_role" "github_actions" {
-  count = try(data.aws_iam_role.github_actions_existing[0].arn, null) == null ? 1 : 0  # Create if not found
   name  = "GitHubActionsRole"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -15,7 +14,6 @@ resource "aws_iam_role" "github_actions" {
 }
 
 resource "aws_iam_policy" "github_actions_policy" {
-  count = try(data.aws_iam_policy.github_actions_policy_existing[0].arn, null) == null ? 1 : 0  # Create if not found
   name  = "GitHubActionsPolicy"
   policy = jsonencode({
     Version = "2012-10-17"
@@ -40,7 +38,7 @@ resource "aws_iam_policy" "github_actions_policy" {
 }
 
 resource "aws_iam_role_policy_attachment" "github_actions_attach" {
-  role       = try(data.aws_iam_role.github_actions_existing[0].arn, null) == null ? aws_iam_role.github_actions[0].name : data.aws_iam_role.github_actions_existing[0].name
+  role       = aws_iam_role.github_actions.name
   policy_arn = try(data.aws_iam_policy.github_actions_policy_existing[0].arn, null) == null ? aws_iam_policy.github_actions_policy[0].arn : data.aws_iam_policy.github_actions_policy_existing[0].arn
 }
 
@@ -57,7 +55,7 @@ resource "aws_iam_policy" "github_s3_upload" {
 }
 
 resource "aws_iam_role_policy_attachment" "github_s3_attach" {
-  role       = try(data.aws_iam_role.github_actions_existing[0].arn, null) == null ? aws_iam_role.github_actions[0].name : data.aws_iam_role.github_actions_existing[0].name
+  role       = aws_iam_role.github_actions.name
   policy_arn = aws_iam_policy.github_s3_upload.arn
 }
 
