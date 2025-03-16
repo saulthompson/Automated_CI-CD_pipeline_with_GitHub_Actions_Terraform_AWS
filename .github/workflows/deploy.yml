@@ -172,7 +172,7 @@ jobs:
 
   apply:
     name: Terraform Apply and Deploy
-    needs: [check-bucket]
+    needs: [check-bucket, bootstrap]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
