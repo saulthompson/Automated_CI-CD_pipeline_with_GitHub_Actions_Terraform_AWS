@@ -26,7 +26,7 @@ resource "aws_iam_policy" "github_actions_policy" {
     Statement = [
       {
         Effect   = "Allow"
-        Action   = ["s3:ListBucket", "s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:PutBucketPolicy", "s3:GetBucketPolicy", "s3:GetBucketAcl"]
+        Action   = ["s3:ListBucket", "s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:PutBucketPolicy", "s3:GetBucketPolicy", "s3:GetBucketAcl", "s3:GetBucketCORS"]
         Resource = "*"
       },
       {
