@@ -96,95 +96,95 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
       - name: Install Terraform
         uses: hashicorp/setup-terraform@v3
-        - name: Tear Down and Bootstrap Terraform State Bucket
-          run: |
-            mkdir -p bootstrap
-            cd bootstrap
-            
-            # Define bucket name
-            BUCKET_NAME="tf-${{ secrets.AWS_ACCOUNT_ID }}"
-            
-            # Delete existing bucket contents
-            echo "Removing existing bucket $BUCKET_NAME if it exists..."
-            if aws s3 ls "s3://$BUCKET_NAME" 2>/dev/null; then
-              # Delete all objects and versions
-              echo "Deleting all objects and versions in $BUCKET_NAME..."
-              OBJECTS=$(aws s3api list-object-versions --bucket "$BUCKET_NAME" --query 'Versions[].{Key:Key,VersionId:VersionId}' --output json)
-              if [ -n "$OBJECTS" ] && [ "$OBJECTS" != "null" ]; then
-                echo "$OBJECTS" | jq -r '.[] | [.Key, .VersionId] | join(" ")' | while read KEY VERSION; do
-                  aws s3api delete-object --bucket "$BUCKET_NAME" --key "$KEY" --version-id "$VERSION" || { echo "Failed to delete $KEY version $VERSION"; exit 1; }
-                done
-              fi
-              
-              # Delete all delete markers (if versioning enabled)
-              DELETE_MARKERS=$(aws s3api list-object-versions --bucket "$BUCKET_NAME" --query 'DeleteMarkers[].{Key:Key,VersionId:VersionId}' --output json)
-              if [ -n "$DELETE_MARKERS" ] && [ "$DELETE_MARKERS" != "null" ]; then
-                echo "$DELETE_MARKERS" | jq -r '.[] | [.Key, .VersionId] | join(" ")' | while read KEY VERSION; do
-                  aws s3api delete-object --bucket "$BUCKET_NAME" --key "$KEY" --version-id "$VERSION" || { echo "Failed to delete delete marker $KEY version $VERSION"; exit 1; }
-                done
-              fi
-              
-              # Wait until bucket is empty
-              echo "Verifying all objects are deleted..."
-              ATTEMPTS=10
-              DELAY=5
-              for ((i=1; i<=$ATTEMPTS; i++)); do
-                if aws s3 ls "s3://$BUCKET_NAME" 2>/dev/null; then
-                  echo "Bucket $BUCKET_NAME still has objects, waiting $DELAY seconds (attempt $i/$ATTEMPTS)..."
-                  sleep $DELAY
-                else
-                  echo "Bucket $BUCKET_NAME is empty"
-                  break
-                fi
+      - name: Tear Down and Bootstrap Terraform State Bucket
+        run: |
+          mkdir -p bootstrap
+          cd bootstrap
+          
+          # Define bucket name
+          BUCKET_NAME="tf-${{ secrets.AWS_ACCOUNT_ID }}"
+          
+          # Delete existing bucket contents
+          echo "Removing existing bucket $BUCKET_NAME if it exists..."
+          if aws s3 ls "s3://$BUCKET_NAME" 2>/dev/null; then
+            # Delete all objects and versions
+            echo "Deleting all objects and versions in $BUCKET_NAME..."
+            OBJECTS=$(aws s3api list-object-versions --bucket "$BUCKET_NAME" --query 'Versions[].{Key:Key,VersionId:VersionId}' --output json)
+            if [ -n "$OBJECTS" ] && [ "$OBJECTS" != "null" ]; then
+              echo "$OBJECTS" | jq -r '.[] | [.Key, .VersionId] | join(" ")' | while read KEY VERSION; do
+                aws s3api delete-object --bucket "$BUCKET_NAME" --key "$KEY" --version-id "$VERSION" || { echo "Failed to delete $KEY version $VERSION"; exit 1; }
               done
-              if [ $i -gt $ATTEMPTS ]; then
-                echo "Error: Bucket $BUCKET_NAME still not empty after $ATTEMPTS attempts"
-                exit 1
-              fi
-              
-              # Delete the bucket
-              echo "Deleting bucket $BUCKET_NAME..."
-              aws s3 rb "s3://$BUCKET_NAME" || { echo "Failed to delete bucket $BUCKET_NAME"; exit 1; }
-              
-              # Verify bucket deletion
-              echo "Verifying bucket deletion..."
-              for ((i=1; i<=$ATTEMPTS; i++)); do
-                if aws s3 ls "s3://$BUCKET_NAME" 2>/dev/null; then
-                  echo "Bucket $BUCKET_NAME still exists, waiting $DELAY seconds (attempt $i/$ATTEMPTS)..."
-                  sleep $DELAY
-                else
-                  echo "Bucket $BUCKET_NAME successfully deleted"
-                  break
-                fi
-              done
-              if [ $i -gt $ATTEMPTS ]; then
-                echo "Error: Bucket $BUCKET_NAME still exists after $ATTEMPTS attempts"
-                exit 1
-              fi
-            else
-              echo "Bucket $BUCKET_NAME does not exist, proceeding..."
             fi
             
-            # Define bootstrap config
-            cat <<EOF > bootstrap.tf
-            provider "aws" {
-              region = "${{ env.AWS_REGION }}"
-            }
-            data "aws_caller_identity" "current" {}
-            module "tfstate_s3" {
-              source     = "../modules/tfstate_s3"
-              account_id = data.aws_caller_identity.current.account_id
-            }
-            EOF
+            # Delete all delete markers (if versioning enabled)
+            DELETE_MARKERS=$(aws s3api list-object-versions --bucket "$BUCKET_NAME" --query 'DeleteMarkers[].{Key:Key,VersionId:VersionId}' --output json)
+            if [ -n "$DELETE_MARKERS" ] && [ "$DELETE_MARKERS" != "null" ]; then
+              echo "$DELETE_MARKERS" | jq -r '.[] | [.Key, .VersionId] | join(" ")' | while read KEY VERSION; do
+                aws s3api delete-object --bucket "$BUCKET_NAME" --key "$KEY" --version-id "$VERSION" || { echo "Failed to delete delete marker $KEY version $VERSION"; exit 1; }
+              done
+            fi
             
-            # Clear local Terraform files
-            rm -rf .terraform terraform.tfstate*
+            # Wait until bucket is empty
+            echo "Verifying all objects are deleted..."
+            ATTEMPTS=10
+            DELAY=5
+            for ((i=1; i<=$ATTEMPTS; i++)); do
+              if aws s3 ls "s3://$BUCKET_NAME" 2>/dev/null; then
+                echo "Bucket $BUCKET_NAME still has objects, waiting $DELAY seconds (attempt $i/$ATTEMPTS)..."
+                sleep $DELAY
+              else
+                echo "Bucket $BUCKET_NAME is empty"
+                break
+              fi
+            done
+            if [ $i -gt $ATTEMPTS ]; then
+              echo "Error: Bucket $BUCKET_NAME still not empty after $ATTEMPTS attempts"
+              exit 1
+            fi
             
-            # Initialize and apply
-            terraform init -no-color || { echo "terraform init failed"; exit 1; }
-            terraform apply -auto-approve -no-color || { echo "terraform apply failed"; exit 1; }
-          env:
-            TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
+            # Delete the bucket
+            echo "Deleting bucket $BUCKET_NAME..."
+            aws s3 rb "s3://$BUCKET_NAME" || { echo "Failed to delete bucket $BUCKET_NAME"; exit 1; }
+            
+            # Verify bucket deletion
+            echo "Verifying bucket deletion..."
+            for ((i=1; i<=$ATTEMPTS; i++)); do
+              if aws s3 ls "s3://$BUCKET_NAME" 2>/dev/null; then
+                echo "Bucket $BUCKET_NAME still exists, waiting $DELAY seconds (attempt $i/$ATTEMPTS)..."
+                sleep $DELAY
+              else
+                echo "Bucket $BUCKET_NAME successfully deleted"
+                break
+              fi
+            done
+            if [ $i -gt $ATTEMPTS ]; then
+              echo "Error: Bucket $BUCKET_NAME still exists after $ATTEMPTS attempts"
+              exit 1
+            fi
+          else
+            echo "Bucket $BUCKET_NAME does not exist, proceeding..."
+          fi
+          
+          # Define bootstrap config
+          cat <<EOF > bootstrap.tf
+          provider "aws" {
+            region = "${{ env.AWS_REGION }}"
+          }
+          data "aws_caller_identity" "current" {}
+          module "tfstate_s3" {
+            source     = "../modules/tfstate_s3"
+            account_id = data.aws_caller_identity.current.account_id
+          }
+          EOF
+          
+          # Clear local Terraform files
+          rm -rf .terraform terraform.tfstate*
+          
+          # Initialize and apply
+          terraform init -no-color || { echo "terraform init failed"; exit 1; }
+          terraform apply -auto-approve -no-color || { echo "terraform apply failed"; exit 1; }
+        env:
+          TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
 
   debug-outputs:
     name: Debug Check-Bucket Outputs
