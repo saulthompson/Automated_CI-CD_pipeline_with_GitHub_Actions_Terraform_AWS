@@ -93,7 +93,7 @@ jobs:
   bootstrap:
     name: Bootstrap Terraform State Bucket
     needs: [setup-oidc, check-bucket]
-    if: ${{ needs.check-bucket.outputs.bucket_exists == 'false' }}
+    # if: ${{ needs.check-bucket.outputs.bucket_exists == 'false' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
