@@ -32,7 +32,7 @@ jobs:
         run: |
           echo "Running on commit: ${GITHUB_SHA}"
           git log -1
-      - name: Tear Down and Bootstrap Terraform State Bucket
+      - name: Tear Down and Bootstrap Terraform State Bucket  # Added `-` here
         run: |
           mkdir -p bootstrap
           cd bootstrap
@@ -81,7 +81,22 @@ jobs:
           echo "Deleting OIDC provider..."
           aws iam delete-open-id-connect-provider --open-id-connect-provider-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:oidc-provider/token.actions.githubusercontent.com" 2>/dev/null || echo "OIDC provider not found"
           
-          echo 'provider "aws" { region = "${{ env.AWS_REGION }}" }\n data "aws_caller_identity" "current" {}\n module "tfstate_s3" { source = "../modules/tfstate_s3" account_id = data.aws_caller_identity.current.account_id }\n module "github_actions_integration" { source = "../modules/github_actions_integration" account_id = data.aws_caller_identity.current.account_id github_repo = "${{ github.repository }}" bucket_arn = module.tfstate_s3.bucket_arn }' > bootstrap.tf
+          cat <<EOF > bootstrap.tf
+          provider "aws" {
+            region = "${{ env.AWS_REGION }}"
+          }
+          data "aws_caller_identity" "current" {}
+          module "tfstate_s3" {
+            source     = "../modules/tfstate_s3"
+            account_id = data.aws_caller_identity.current.account_id
+          }
+          module "github_actions_integration" {
+            source      = "../modules/github_actions_integration"
+            account_id  = data.aws_caller_identity.current.account_id
+            github_repo = "${{ github.repository }}"
+            bucket_arn  = module.tfstate_s3.bucket_arn
+          }
+          EOF
           
           rm -rf .terraform terraform.tfstate*
           terraform init -no-color || { echo "terraform init failed"; exit 1; }
