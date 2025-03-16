@@ -1,13 +1,3 @@
-terraform {
-  required_providers {
-    aws = { source = "hashicorp/aws" version = "~> 5.0" }
-  }
-}
-
-variable "github_repo" { type = string }
-variable "account_id" { type = string }
-variable "bucket_arn" { type = string }
-
 # Reference existing role if it exists, otherwise create it
 data "aws_iam_role" "github_actions_existing" {
   name = "GitHubActionsRole"
