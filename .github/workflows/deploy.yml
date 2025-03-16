@@ -32,77 +32,77 @@ jobs:
         run: |
           echo "Running on commit: ${GITHUB_SHA}"
           git log -1
-      name: Tear Down and Bootstrap Terraform State Bucket
-      run: |
-        mkdir -p bootstrap
-        cd bootstrap
-        
-        BUCKET_NAME="tf-${{ secrets.AWS_ACCOUNT_ID }}"
-        WEBSITE_BUCKET="my-static-site-${{ secrets.AWS_ACCOUNT_ID }}"
-        
-        echo "Removing existing resources..."
-        
-        if aws s3 ls "s3://$WEBSITE_BUCKET" 2>/dev/null; then
-          aws s3 rb "s3://$WEBSITE_BUCKET" --force || { echo "Failed to delete $WEBSITE_BUCKET"; exit 1; }
-        fi
-        
-        if aws s3 ls "s3://$BUCKET_NAME" 2>/dev/null; then
-          aws s3 rb "s3://$BUCKET_NAME" --force || { echo "Failed to delete $BUCKET_NAME"; exit 1; }
-          ATTEMPTS=20
-          DELAY=5
-          for ((i=1; i<=$ATTEMPTS; i++)); do
-            if aws s3 ls "s3://$BUCKET_NAME" 2>/dev/null; then
-              echo "Bucket $BUCKET_NAME still exists, waiting $DELAY seconds (attempt $i/$ATTEMPTS)..."
-              sleep $DELAY
-            else
-              echo "Bucket $BUCKET_NAME successfully deleted"
-              break
-            fi
-          done
-          if [ $i -gt $ATTEMPTS ]; then
-            echo "Error: Bucket $BUCKET_NAME still exists after $ATTEMPTS attempts"
-            exit 1
+      - name: Tear Down and Bootstrap Terraform State Bucket  # Added `-` here
+        run: |
+          mkdir -p bootstrap
+          cd bootstrap
+          
+          BUCKET_NAME="tf-${{ secrets.AWS_ACCOUNT_ID }}"
+          WEBSITE_BUCKET="my-static-site-${{ secrets.AWS_ACCOUNT_ID }}"
+          
+          echo "Removing existing resources..."
+          
+          if aws s3 ls "s3://$WEBSITE_BUCKET" 2>/dev/null; then
+            aws s3 rb "s3://$WEBSITE_BUCKET" --force || { echo "Failed to delete $WEBSITE_BUCKET"; exit 1; }
           fi
-        fi
-        
-        # Detach and delete IAM policies
-        echo "Detaching policies from GitHubActionsRole..."
-        aws iam detach-role-policy --role-name GitHubActionsRole --policy-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:policy/GitHubActionsPolicy" 2>/dev/null || echo "GitHubActionsPolicy not attached"
-        aws iam detach-role-policy --role-name GitHubActionsRole --policy-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:policy/GitHubS3UploadPolicy" 2>/dev/null || echo "GitHubS3UploadPolicy not attached"
-        aws iam detach-role-policy --role-name GitHubActionsRole --policy-arn "arn:aws:iam::aws:policy/AdministratorAccess" 2>/dev/null || echo "AdministratorAccess not attached"
-        
-        echo "Deleting GitHubActionsRole..."
-        aws iam delete-role --role-name GitHubActionsRole 2>/dev/null || echo "GitHubActionsRole not found or already deleted"
-        
-        echo "Deleting IAM policies..."
-        aws iam delete-policy --policy-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:policy/GitHubActionsPolicy" 2>/dev/null || echo "GitHubActionsPolicy not found"
-        aws iam delete-policy --policy-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:policy/GitHubS3UploadPolicy" 2>/dev/null || echo "GitHubS3UploadPolicy not found"
-        
-        echo "Deleting OIDC provider..."
-        aws iam delete-open-id-connect-provider --open-id-connect-provider-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:oidc-provider/token.actions.githubusercontent.com" 2>/dev/null || echo "OIDC provider not found"
-        
-        cat <<EOF > bootstrap.tf
-        provider "aws" {
-          region = "${{ env.AWS_REGION }}"
-        }
-        data "aws_caller_identity" "current" {}
-        module "tfstate_s3" {
-          source     = "../modules/tfstate_s3"
-          account_id = data.aws_caller_identity.current.account_id
-        }
-        module "github_actions_integration" {
-          source      = "../modules/github_actions_integration"
-          account_id  = data.aws_caller_identity.current.account_id
-          github_repo = "${{ github.repository }}"
-          bucket_arn  = module.tfstate_s3.bucket_arn
-        }
-        EOF
-        
-        rm -rf .terraform terraform.tfstate*
-        terraform init -no-color || { echo "terraform init failed"; exit 1; }
-        terraform apply -auto-approve -no-color || { echo "terraform apply failed"; exit 1; }
-      env:
-        TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
+          
+          if aws s3 ls "s3://$BUCKET_NAME" 2>/dev/null; then
+            aws s3 rb "s3://$BUCKET_NAME" --force || { echo "Failed to delete $BUCKET_NAME"; exit 1; }
+            ATTEMPTS=20
+            DELAY=5
+            for ((i=1; i<=$ATTEMPTS; i++)); do
+              if aws s3 ls "s3://$BUCKET_NAME" 2>/dev/null; then
+                echo "Bucket $BUCKET_NAME still exists, waiting $DELAY seconds (attempt $i/$ATTEMPTS)..."
+                sleep $DELAY
+              else
+                echo "Bucket $BUCKET_NAME successfully deleted"
+                break
+              fi
+            done
+            if [ $i -gt $ATTEMPTS ]; then
+              echo "Error: Bucket $BUCKET_NAME still exists after $ATTEMPTS attempts"
+              exit 1
+            fi
+          fi
+          
+          # Detach and delete IAM policies
+          echo "Detaching policies from GitHubActionsRole..."
+          aws iam detach-role-policy --role-name GitHubActionsRole --policy-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:policy/GitHubActionsPolicy" 2>/dev/null || echo "GitHubActionsPolicy not attached"
+          aws iam detach-role-policy --role-name GitHubActionsRole --policy-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:policy/GitHubS3UploadPolicy" 2>/dev/null || echo "GitHubS3UploadPolicy not attached"
+          aws iam detach-role-policy --role-name GitHubActionsRole --policy-arn "arn:aws:iam::aws:policy/AdministratorAccess" 2>/dev/null || echo "AdministratorAccess not attached"
+          
+          echo "Deleting GitHubActionsRole..."
+          aws iam delete-role --role-name GitHubActionsRole 2>/dev/null || echo "GitHubActionsRole not found or already deleted"
+          
+          echo "Deleting IAM policies..."
+          aws iam delete-policy --policy-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:policy/GitHubActionsPolicy" 2>/dev/null || echo "GitHubActionsPolicy not found"
+          aws iam delete-policy --policy-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:policy/GitHubS3UploadPolicy" 2>/dev/null || echo "GitHubS3UploadPolicy not found"
+          
+          echo "Deleting OIDC provider..."
+          aws iam delete-open-id-connect-provider --open-id-connect-provider-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:oidc-provider/token.actions.githubusercontent.com" 2>/dev/null || echo "OIDC provider not found"
+          
+          cat <<EOF > bootstrap.tf
+          provider "aws" {
+            region = "${{ env.AWS_REGION }}"
+          }
+          data "aws_caller_identity" "current" {}
+          module "tfstate_s3" {
+            source     = "../modules/tfstate_s3"
+            account_id = data.aws_caller_identity.current.account_id
+          }
+          module "github_actions_integration" {
+            source      = "../modules/github_actions_integration"
+            account_id  = data.aws_caller_identity.current.account_id
+            github_repo = "${{ github.repository }}"
+            bucket_arn  = module.tfstate_s3.bucket_arn
+          }
+          EOF
+          
+          rm -rf .terraform terraform.tfstate*
+          terraform init -no-color || { echo "terraform init failed"; exit 1; }
+          terraform apply -auto-approve -no-color || { echo "terraform apply failed"; exit 1; }
+        env:
+          TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
 
   apply:
     name: Terraform Apply and Deploy
@@ -124,12 +124,12 @@ jobs:
           git log -1
       - name: Run Terraform
         run: |
-        echo "Running apply job - v3 - timestamp: $(date +%s)"
-        BUCKET_NAME="tf-${{ secrets.AWS_ACCOUNT_ID }}"
-        terraform init -no-color -backend-config="bucket=$BUCKET_NAME" -backend-config="key=state/terraform.tfstate" -backend-config="region=${{ env.AWS_REGION }}" || { echo "terraform init failed"; exit 1; }
-        terraform apply -auto-approve -no-color -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}"
-      env:
-        TF_LOG: DEBUG
+          echo "Running apply job - v3 - timestamp: $(date +%s)"
+          BUCKET_NAME="tf-${{ secrets.AWS_ACCOUNT_ID }}"
+          terraform init -no-color -backend-config="bucket=$BUCKET_NAME" -backend-config="key=state/terraform.tfstate" -backend-config="region=${{ env.AWS_REGION }}" || { echo "terraform init failed"; exit 1; }
+          terraform apply -auto-approve -no-color -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}"
+        env:
+          TF_LOG: DEBUG
       - name: Sync files to S3
         run: |
           aws s3 sync ./ s3://${{ secrets.S3_BUCKET }} --delete
