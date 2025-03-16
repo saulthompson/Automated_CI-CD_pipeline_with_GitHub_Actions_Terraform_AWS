@@ -26,7 +26,7 @@ resource "aws_iam_policy" "github_actions_policy" {
     Statement = [
       {
         Effect   = "Allow"
-        Action   = "s3:*"
+        Action   = ["s3:*", "iam:*"]
         Resource = "*"
       },
       {
