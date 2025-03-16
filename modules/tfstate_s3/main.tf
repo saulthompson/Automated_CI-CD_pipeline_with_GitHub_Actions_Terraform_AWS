@@ -40,6 +40,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "tfstate_lifecycle" {
 
   rule {
     id     = "ExpireOldVersions"
+    filter { prefix = "" }
     status = "Enabled"
 
     noncurrent_version_expiration {
