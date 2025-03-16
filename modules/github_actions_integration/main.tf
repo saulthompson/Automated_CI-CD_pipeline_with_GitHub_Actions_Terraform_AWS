@@ -1,9 +1,3 @@
-# Fetch existing role only if it might exist (count = 1 by default, adjust if needed)
-data "aws_iam_role" "github_actions_existing" {
-  count = 1  
-  name  = "GitHubActionsRole"
-}
-
 resource "aws_iam_role" "github_actions" {
   count = try(data.aws_iam_role.github_actions_existing[0].arn, null) == null ? 1 : 0  # Create if not found
   name  = "GitHubActionsRole"
@@ -18,12 +12,6 @@ resource "aws_iam_role" "github_actions" {
       }
     ]
   })
-}
-
-# Fetch existing policy only if it might exist
-data "aws_iam_policy" "github_actions_policy_existing" {
-  count = 1  
-  name  = "GitHubActionsPolicy"
 }
 
 resource "aws_iam_policy" "github_actions_policy" {
