@@ -105,10 +105,19 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
       - name: Install Terraform
         uses: hashicorp/setup-terraform@v3
-      - name: Bootstrap Terraform State Bucket
+      - name: Tear Down and Bootstrap Terraform State Bucket
         run: |
           mkdir -p bootstrap
           cd bootstrap
+          
+          # Define bucket name
+          BUCKET_NAME="tf-${{ secrets.AWS_ACCOUNT_ID }}"
+          
+          # Delete existing bucket and state (force removal even if not empty)
+          echo "Removing existing bucket $BUCKET_NAME if it exists..."
+          aws s3 rb "s3://$BUCKET_NAME" --force || echo "Bucket $BUCKET_NAME not found or already deleted"
+          
+          # Define bootstrap config
           cat <<EOF > bootstrap.tf
           provider "aws" {
             region = "${{ env.AWS_REGION }}"
@@ -119,11 +128,15 @@ jobs:
             account_id = data.aws_caller_identity.current.account_id
           }
           EOF
+          
+          # Clear local Terraform files
           rm -rf .terraform terraform.tfstate*
+          
+          # Initialize and apply
           terraform init -no-color || { echo "terraform init failed"; exit 1; }
-          terraform apply -auto-approve -no-color
+          terraform apply -auto-approve -no-color || { echo "terraform apply failed"; exit 1; }
         env:
-          TF_LOG: DEBUG
+          TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
 
   debug-outputs:
     name: Debug Check-Bucket Outputs
