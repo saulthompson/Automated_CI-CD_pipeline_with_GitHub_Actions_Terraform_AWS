@@ -14,67 +14,77 @@ permissions:
   contents: read
 
 jobs:
-  bootstrap:
-    name: Bootstrap Terraform State Bucket
+  setup-oidc:
+    name: Setup OIDC Provider
     runs-on: ubuntu-latest
+    outputs:
+      oidc_exists: ${{ steps.check-oidc.outputs.oidc_exists }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Configure AWS credentials (Initial Setup)
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Check if OIDC Provider Exists
+        id: check-oidc
+        run: |
+          if aws iam list-open-id-connect-providers | grep -q "token.actions.githubusercontent.com"; then
+            echo "OIDC provider for GitHub exists"
+            echo "oidc_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "OIDC provider for GitHub does not exist"
+            echo "oidc_exists=false" >> $GITHUB_OUTPUT
+          fi
+      - name: Create OIDC Provider
+        if: steps.check-oidc.outputs.oidc_exists == 'false'
+        run: |
+          aws iam create-open-id-connect-provider \
+            --url "https://token.actions.githubusercontent.com" \
+            --client-id-list "sts.amazonaws.com"
+
+  check-bucket:
+    name: Check Terraform State Bucket
+    needs: setup-oidc
+    runs-on: ubuntu-latest
+    outputs:
+      bucket_exists: ${{ steps.check.outputs.bucket_exists }}
+      bucket_name: ${{ steps.check.outputs.bucket_name }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
       - name: Configure AWS credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}  # Initial setup with keys
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
           aws-region: ${{ env.AWS_REGION }}
-      - name: Install Terraform
-        uses: hashicorp/setup-terraform@v3
-      - name: Tear Down and Bootstrap Terraform State Bucket
+      - name: Check if bucket exists
+        id: check
         run: |
-          mkdir -p bootstrap
-          cd bootstrap
-          
-          # Define bucket names
+          echo "AWS_ACCOUNT_ID in check-bucket: '${{ secrets.AWS_ACCOUNT_ID }}'"
           BUCKET_NAME="tf-${{ secrets.AWS_ACCOUNT_ID }}"
-          WEBSITE_BUCKET="my-static-site-${{ secrets.AWS_ACCOUNT_ID }}"
-          
-          # Delete existing resources
-          echo "Removing existing resources..."
-          
-          # Delete website bucket
-          if aws s3 ls "s3://$WEBSITE_BUCKET" 2>/dev/null; then
-            aws s3 rb "s3://$WEBSITE_BUCKET" --force || echo "Failed to delete $WEBSITE_BUCKET, continuing..."
-          fi
-          
-          # Delete state bucket
+          echo "Computed BUCKET_NAME: '$BUCKET_NAME'"
+          echo "Checking bucket: $BUCKET_NAME"
           if aws s3 ls "s3://$BUCKET_NAME" 2>/dev/null; then
-            aws s3 rb "s3://$BUCKET_NAME" --force || echo "Failed to delete $BUCKET_NAME, continuing..."
+            echo "Bucket $BUCKET_NAME exists"
+            echo "bucket_exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Bucket $BUCKET_NAME does not exist"
+            echo "bucket_exists=false" >> "$GITHUB_OUTPUT"
           fi
-          
-          # Delete IAM resources
-          aws iam delete-role --role-name GitHubActionsRole 2>/dev/null || echo "GitHubActionsRole not found"
-          aws iam delete-open-id-connect-provider --open-id-connect-provider-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:oidc-provider/token.actions.githubusercontent.com" 2>/dev/null || echo "OIDC provider not found"
-          
-          # Define bootstrap config
-          cat <<EOF > bootstrap.tf
-          provider "aws" {
-            region = "${{ env.AWS_REGION }}"
-          }
-          data "aws_caller_identity" "current" {}
-          module "tfstate_s3" {
-            source     = "../modules/tfstate_s3"
-            account_id = data.aws_caller_identity.current.account_id
-          }
-          EOF
-          
-          rm -rf .terraform terraform.tfstate*
-          terraform init -no-color || { echo "terraform init failed"; exit 1; }
-          terraform apply -auto-approve -no-color || { echo "terraform apply failed"; exit 1; }
-        env:
-          TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
+          echo "Setting bucket_name output..."
+          echo "bucket_name<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$BUCKET_NAME" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          echo "Wrote bucket_name=$BUCKET_NAME to GITHUB_OUTPUT"
+          cat "$GITHUB_OUTPUT"
 
-  apply:
-    name: Terraform Apply and Deploy
-    needs: bootstrap
+  bootstrap:
+    name: Bootstrap Terraform State Bucket
+    needs: [setup-oidc, check-bucket]
+    # if: ${{ needs.check-bucket.outputs.bucket_exists == 'false' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
@@ -86,11 +96,139 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
       - name: Install Terraform
         uses: hashicorp/setup-terraform@v3
+        - name: Tear Down and Bootstrap Terraform State Bucket
+          run: |
+            mkdir -p bootstrap
+            cd bootstrap
+            
+            # Define bucket name
+            BUCKET_NAME="tf-${{ secrets.AWS_ACCOUNT_ID }}"
+            
+            # Delete existing bucket contents
+            echo "Removing existing bucket $BUCKET_NAME if it exists..."
+            if aws s3 ls "s3://$BUCKET_NAME" 2>/dev/null; then
+              # Delete all objects and versions
+              echo "Deleting all objects and versions in $BUCKET_NAME..."
+              OBJECTS=$(aws s3api list-object-versions --bucket "$BUCKET_NAME" --query 'Versions[].{Key:Key,VersionId:VersionId}' --output json)
+              if [ -n "$OBJECTS" ] && [ "$OBJECTS" != "null" ]; then
+                echo "$OBJECTS" | jq -r '.[] | [.Key, .VersionId] | join(" ")' | while read KEY VERSION; do
+                  aws s3api delete-object --bucket "$BUCKET_NAME" --key "$KEY" --version-id "$VERSION" || { echo "Failed to delete $KEY version $VERSION"; exit 1; }
+                done
+              fi
+              
+              # Delete all delete markers (if versioning enabled)
+              DELETE_MARKERS=$(aws s3api list-object-versions --bucket "$BUCKET_NAME" --query 'DeleteMarkers[].{Key:Key,VersionId:VersionId}' --output json)
+              if [ -n "$DELETE_MARKERS" ] && [ "$DELETE_MARKERS" != "null" ]; then
+                echo "$DELETE_MARKERS" | jq -r '.[] | [.Key, .VersionId] | join(" ")' | while read KEY VERSION; do
+                  aws s3api delete-object --bucket "$BUCKET_NAME" --key "$KEY" --version-id "$VERSION" || { echo "Failed to delete delete marker $KEY version $VERSION"; exit 1; }
+                done
+              fi
+              
+              # Wait until bucket is empty
+              echo "Verifying all objects are deleted..."
+              ATTEMPTS=10
+              DELAY=5
+              for ((i=1; i<=$ATTEMPTS; i++)); do
+                if aws s3 ls "s3://$BUCKET_NAME" 2>/dev/null; then
+                  echo "Bucket $BUCKET_NAME still has objects, waiting $DELAY seconds (attempt $i/$ATTEMPTS)..."
+                  sleep $DELAY
+                else
+                  echo "Bucket $BUCKET_NAME is empty"
+                  break
+                fi
+              done
+              if [ $i -gt $ATTEMPTS ]; then
+                echo "Error: Bucket $BUCKET_NAME still not empty after $ATTEMPTS attempts"
+                exit 1
+              fi
+              
+              # Delete the bucket
+              echo "Deleting bucket $BUCKET_NAME..."
+              aws s3 rb "s3://$BUCKET_NAME" || { echo "Failed to delete bucket $BUCKET_NAME"; exit 1; }
+              
+              # Verify bucket deletion
+              echo "Verifying bucket deletion..."
+              for ((i=1; i<=$ATTEMPTS; i++)); do
+                if aws s3 ls "s3://$BUCKET_NAME" 2>/dev/null; then
+                  echo "Bucket $BUCKET_NAME still exists, waiting $DELAY seconds (attempt $i/$ATTEMPTS)..."
+                  sleep $DELAY
+                else
+                  echo "Bucket $BUCKET_NAME successfully deleted"
+                  break
+                fi
+              done
+              if [ $i -gt $ATTEMPTS ]; then
+                echo "Error: Bucket $BUCKET_NAME still exists after $ATTEMPTS attempts"
+                exit 1
+              fi
+            else
+              echo "Bucket $BUCKET_NAME does not exist, proceeding..."
+            fi
+            
+            # Define bootstrap config
+            cat <<EOF > bootstrap.tf
+            provider "aws" {
+              region = "${{ env.AWS_REGION }}"
+            }
+            data "aws_caller_identity" "current" {}
+            module "tfstate_s3" {
+              source     = "../modules/tfstate_s3"
+              account_id = data.aws_caller_identity.current.account_id
+            }
+            EOF
+            
+            # Clear local Terraform files
+            rm -rf .terraform terraform.tfstate*
+            
+            # Initialize and apply
+            terraform init -no-color || { echo "terraform init failed"; exit 1; }
+            terraform apply -auto-approve -no-color || { echo "terraform apply failed"; exit 1; }
+          env:
+            TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
+
+  debug-outputs:
+    name: Debug Check-Bucket Outputs
+    needs: [check-bucket]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Echo Outputs
+        run: |
+          echo "Bucket Exists: '${{ needs.check-bucket.outputs.bucket_exists }}'"
+          echo "Bucket Name: '${{ needs.check-bucket.outputs.bucket_name }}'"
+
+  apply:
+    name: Terraform Apply and Deploy
+    needs: [check-bucket, bootstrap]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Configure AWS credentials using OIDC
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v3
+      - name: Tear Down Existing IAM Resources
+        run: |
+          aws iam delete-role --role-name GitHubActionsRole || echo "Role GitHubActionsRole not found"
+          aws iam delete-open-id-connect-provider --open-id-connect-provider-arn arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:oidc-provider/token.actions.githubusercontent.com || echo "OIDC provider not found"
       - name: Run Terraform
         run: |
-          echo "Running apply job - v3 - timestamp: $(date +%s)"
-          BUCKET_NAME="tf-${{ secrets.AWS_ACCOUNT_ID }}"
-          terraform init -no-color -backend-config="bucket=$BUCKET_NAME" -backend-config="key=state/terraform.tfstate" -backend-config="region=${{ env.AWS_REGION }}" || { echo "terraform init failed"; exit 1; }
+          echo "Running apply job - v2 - timestamp: $(date +%s)"
+          BUCKET_NAME_FROM_OUTPUT="${{ needs.check-bucket.outputs.bucket_name }}"
+          echo "Bucket Name from check-bucket: '$BUCKET_NAME_FROM_OUTPUT'"
+          echo "AWS_ACCOUNT_ID: '${{ secrets.AWS_ACCOUNT_ID }}'"
+          if [ -z "$BUCKET_NAME_FROM_OUTPUT" ]; then
+            echo "Error: bucket_name is empty. Falling back to computed value."
+            BUCKET_NAME_FALLBACK="tf-${{ secrets.AWS_ACCOUNT_ID }}"
+            echo "Using fallback bucket name: '$BUCKET_NAME_FALLBACK'"
+          else
+            BUCKET_NAME_FALLBACK="$BUCKET_NAME_FROM_OUTPUT"
+            echo "Using output bucket name: '$BUCKET_NAME_FALLBACK'"
+          fi
+          terraform init -no-color -backend-config="bucket=$BUCKET_NAME_FALLBACK" -backend-config="key=state/terraform.tfstate" -backend-config="region=${{ env.AWS_REGION }}" || { echo "terraform init failed"; exit 1; }
           terraform apply -auto-approve -no-color -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}"
         env:
           TF_LOG: DEBUG
