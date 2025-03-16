@@ -184,6 +184,10 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
       - name: Install Terraform
         uses: hashicorp/setup-terraform@v3
+      - name: Tear Down Existing IAM Resources
+        run: |
+          aws iam delete-role --role-name GitHubActionsRole || echo "Role GitHubActionsRole not found"
+          aws iam delete-open-id-connect-provider --open-id-connect-provider-arn arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:oidc-provider/token.actions.githubusercontent.com || echo "OIDC provider not found"
       - name: Run Terraform
         run: |
           echo "Running apply job - v2 - timestamp: $(date +%s)"
