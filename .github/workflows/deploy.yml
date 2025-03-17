@@ -121,6 +121,11 @@ jobs:
           aws iam delete-role --role-name lambda-exec-role-${{ secrets.AWS_ACCOUNT_ID }} 2>/dev/null || echo "lambda-exec-role-${{ secrets.AWS_ACCOUNT_ID }} not found or already deleted"
           aws iam delete-policy --policy-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:policy/lambda-logs-${{ secrets.AWS_ACCOUNT_ID }}" 2>/dev/null || echo "lambda-logs-${{ secrets.AWS_ACCOUNT_ID }} policy not found"
           
+          echo "Deleting lambda function..."
+          aws lambda delete-function --function-name basic-auth-${{ secrets.AWS_ACCOUNT_ID }} || echo "Failed to delete basic-auth-${{ secrets.AWS_ACCOUNT_ID }}"
+          echo "Waiting 10 seconds for Lambda deletion to propagate..."
+          sleep 10
+
           echo "Deleting OIDC provider..."
           aws iam delete-open-id-connect-provider --open-id-connect-provider-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:oidc-provider/token.actions.githubusercontent.com" 2>/dev/null || echo "OIDC provider not found"
           
