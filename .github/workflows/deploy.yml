@@ -100,4 +100,119 @@ jobs:
           }
           empty_and_delete_bucket "$WEBSITE_BUCKET"
           empty_and_delete_bucket "$BUCKET_NAME"
-      
+  - name: Teardown existing roles and policies 
+      run: |
+        echo "Detaching policies from GitHubActionsRole..."
+        aws iam detach-role-policy --role-name GitHubActionsRole --policy-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:policy/GitHubActionsPolicy" 2>/dev/null || echo "GitHubActionsPolicy not attached"
+        aws iam detach-role-policy --role-name GitHubActionsRole --policy-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:policy/GitHubS3UploadPolicy" 2>/dev/null || echo "GitHubS3UploadPolicy not attached"
+        aws iam detach-role-policy --role-name GitHubActionsRole --policy-arn "arn:aws:iam::aws:policy/AdministratorAccess" 2>/dev/null || echo "AdministratorAccess not attached"
+        
+        echo "Deleting GitHubActionsRole..."
+        aws iam delete-role --role-name GitHubActionsRole 2>/dev/null || echo "GitHubActionsRole not found or already deleted"
+        
+        echo "Deleting IAM policies..."
+        aws iam delete-policy --policy-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:policy/GitHubActionsPolicy" 2>/dev/null || echo "GitHubActionsPolicy not found"
+        aws iam delete-policy --policy-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:policy/GitHubS3UploadPolicy" 2>/dev/null || echo "GitHubS3UploadPolicy not found"
+        
+        log "Deleting Lambda function..."
+        if aws lambda get-function --function-name basic-auth-${{ secrets.AWS_ACCOUNT_ID }} 2>/dev/null; then
+          aws lambda delete-function --function-name basic-auth-${{ secrets.AWS_ACCOUNT_ID }} || warn "Failed to delete Lambda function"
+          log "Waiting for Lambda deletion to propagate..."
+          sleep 15
+        else
+          warn "Lambda function basic-auth-${{ secrets.AWS_ACCOUNT_ID }} not found"
+        fi
+        
+        log "Detaching policies from Lambda execution role..."
+        aws iam detach-role-policy --role-name lambda-exec-role-${{ secrets.AWS_ACCOUNT_ID }} --policy-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:policy/lambda-logs-${{ secrets.AWS_ACCOUNT_ID }}" 2>/dev/null || warn "Lambda logs policy not attached"
+
+        log "Deleting Lambda execution role..."
+        aws iam delete-role --role-name lambda-exec-role-${{ secrets.AWS_ACCOUNT_ID }} 2>/dev/null || warn "Lambda execution role not found or locked"
+
+        log "Deleting Lambda logs policy..."
+        aws iam delete-policy --policy-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:policy/lambda-logs-${{ secrets.AWS_ACCOUNT_ID }}" 2>/dev/null || warn "Lambda logs policy not found"
+
+        echo "Deleting OIDC provider..."
+        aws iam delete-open-id-connect-provider --open-id-connect-provider-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:oidc-provider/token.actions.githubusercontent.com" 2>/dev/null || echo "OIDC provider not found"
+        
+    - name: Terraform Init and Apply (Bootstrap)
+      working-directory: ./bootstrap
+      run: |
+        terraform init -no-color || { echo "terraform init failed"; exit 1; }\
+          -backend-config="bucket=$BUCKET_NAME" \
+          -backend-config="key=state/terraform.tfstate" \
+          -backend-config="region=${{ env.AWS_REGION }}" \
+          -backend-config="encrypt=true"
+
+        terraform apply -auto-approve -no-color || { echo "terraform apply failed"; exit 1; }
+      env:
+        TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
+
+  apply:
+    name: Terraform Apply and Deploy
+    needs: [bootstrap]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Configure AWS Credentials with OIDC
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v3
+      - name: Install Node.js for Lambda
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Debug IAM Permissions
+        run: |
+          echo "Assumed Role Identity:"
+          aws sts get-caller-identity
+          echo "Listing Lambda Functions (test permissions):"
+          aws lambda list-functions || echo "Failed to list Lambda functions"
+      - name: Package Lambda Function
+        run: |
+          cd lambda
+          npm init -y
+          zip -r ../lambda.zip index.js.tpl
+          cd ..
+      - name: Wait for IAM Propagation
+        run: |
+          echo "Waiting 30 seconds for IAM policy propagation..."
+          sleep 30
+      - name: Run Terraform
+        run: |
+          echo "Running apply job - v3 - timestamp: $(date +%s)"
+          BUCKET_NAME="tfs-${{ secrets.AWS_ACCOUNT_ID }}"
+          terraform init -no-color -backend-config="bucket=$BUCKET_NAME" -backend-config="key=state/terraform.tfstate" -backend-config="region=${{ env.AWS_REGION }}" || { echo "terraform init failed"; exit 1; }
+          terraform apply -auto-approve -no-color -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}"
+        env:
+          TF_LOG: DEBUG
+      - name: Sync files to S3
+        run: |
+          aws s3 sync ./ s3://${{ secrets.S3_BUCKET }} --delete
+      - name: Output Protected URL
+        id: output-url
+        run: |
+          PROTECTED_URL=$(terraform output -raw protected_url)
+          echo "Protected URL (username: admin, password: mysecretpassword): $PROTECTED_URL"
+          echo "protected_url=$PROTECTED_URL" >> $GITHUB_OUTPUT
+      - name: Check CloudFront Distribution Exists
+        id: check-cloudfront
+        run: |
+          DISTRIBUTION_ID=$(aws cloudfront list-distributions --query 'DistributionList.Items[?Origins.Items[0].DomainName==`${{ secrets.S3_BUCKET }}.s3.${{ env.AWS_REGION }}.amazonaws.com`].Id' --output text 2>/dev/null)
+          if [ -z "$DISTRIBUTION_ID" ] || [ "$DISTRIBUTION_ID" = "None" ]; then
+            echo "No CloudFront distribution found for ${{ secrets.S3_BUCKET }}.s3.${{ env.AWS_REGION }}.amazonaws.com"
+            echo "distribution_exists=false" >> $GITHUB_OUTPUT
+          else
+            echo "CloudFront distribution found: $DISTRIBUTION_ID"
+            echo "CLOUDFRONT_DISTRIBUTION_ID=$DISTRIBUTION_ID" >> $GITHUB_ENV
+            echo "distribution_exists=true" >> $GITHUB_OUTPUT
+          fi
+      - name: Invalidate CloudFront Cache
+        if: steps.check-cloudfront.outputs.distribution_exists == 'true'
+        run: |
+          aws cloudfront create-invalidation --distribution-id ${{ env.CLOUDFRONT_DISTRIBUTION_ID }} --paths "/*"
+          echo "Invalidated cache for: ${{ steps.output-url.outputs.protected_url }}"
