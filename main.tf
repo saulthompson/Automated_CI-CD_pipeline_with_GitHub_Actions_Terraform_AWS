@@ -27,6 +27,8 @@ module "cloudfront" {
   bucket_name                = module.website_s3.bucket_name
   bucket_regional_domain_name = module.website_s3.bucket_regional_domain_name
   account_id                 = var.account_id
+  website_username           = var.website_username
+  website_password           = var.website_password
 }
 
 module "website_s3" {

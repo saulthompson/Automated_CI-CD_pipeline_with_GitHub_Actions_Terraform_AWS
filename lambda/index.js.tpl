@@ -1,9 +1,11 @@
+const USERNAME = "${username}";
+const PASSWORD = "${password}";
+
 exports.handler = async (event) => {
   const request = event.Records[0].cf.request;
   const headers = request.headers;
-  const username = "admin";
-  const password = "mysecretpassword";
-  const authString = `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`;
+  const authString = `Basic ${Buffer.from(`${USERNAME}:${PASSWORD}`).toString("base64")}`;
+  
   if (!headers.authorization || headers.authorization[0].value !== authString) {
     return {
       status: "401",

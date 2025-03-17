@@ -9,6 +9,15 @@ resource "aws_lambda_function" "basic_auth" {
   publish          = true
 }
 
+data "template_file" "lambda_auth" {
+  template = file("${path.module}/lambda-auth.js.tpl")
+  vars = {
+    basic_user     = var.website_username
+    basic_password = var.website_password
+  }
+}
+
+
 resource "aws_iam_role" "lambda_exec" {
   name = "lambda-exec-role-${var.account_id}"
   assume_role_policy = jsonencode({

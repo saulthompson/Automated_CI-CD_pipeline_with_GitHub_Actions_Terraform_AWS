@@ -10,3 +10,11 @@ variable "bucket_regional_domain_name" {
 variable "account_id" { 
   type = string 
 }
+
+variable website_password {
+  type = string
+}
+
+variable website_username {
+  type = string
+}
