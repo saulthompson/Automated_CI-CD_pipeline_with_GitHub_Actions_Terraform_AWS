@@ -192,7 +192,7 @@ jobs:
         run: |
           cd lambda
           npm init -y
-          zip -r ../lambda.zip index.js
+          zip -r ../lambda.zip index.js.tpl
           cd ..
       - name: Wait for IAM Propagation
         run: |
