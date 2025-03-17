@@ -116,7 +116,7 @@ jobs:
           empty_and_delete_bucket "$WEBSITE_BUCKET"
           empty_and_delete_bucket "$BUCKET_NAME"
         
-        name: Teardown existing roles and policies 
+      - name: Teardown existing roles and policies 
         run: |
           echo "Detaching policies from GitHubActionsRole..."
           aws iam detach-role-policy --role-name GitHubActionsRole --policy-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:policy/GitHubActionsPolicy" 2>/dev/null || echo "GitHubActionsPolicy not attached"
@@ -192,7 +192,7 @@ jobs:
         run: |
           cd lambda
           npm init -y
-          zip -r ../lambda.zip index.js
+          zip -r ../lambda.zip index.js.tpl
           cd ..
       - name: Wait for IAM Propagation
         run: |
