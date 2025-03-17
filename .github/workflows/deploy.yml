@@ -17,6 +17,10 @@ jobs:
   bootstrap:
     name: Bootstrap Terraform State and IAM
     runs-on: ubuntu-latest
+    # Note: GHA can't run AWS CLI in 'if', so this is indicative; real check is in script
+    if: "!contains(fromJson('[]'), 'aws s3 ls s3://tfs-${{ secrets.AWS_ACCOUNT_ID }}')"
+    outputs:
+      ran: ${{ steps.check-and-run.outputs.ran }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -33,12 +37,23 @@ jobs:
           echo "Running on commit: ${GITHUB_SHA}"
           git log -1
       - name: Tear Down and Bootstrap Terraform State Bucket
+        id: check-and-run
         run: |
-          mkdir -p bootstrap
-          cd bootstrap
-          
           BUCKET_NAME="tfs-${{ secrets.AWS_ACCOUNT_ID }}"
           WEBSITE_BUCKET="${{ secrets.S3_BUCKET }}-${{ secrets.AWS_ACCOUNT_ID }}"
+          
+          # Check if state bucket exists
+          if aws s3 ls "s3://$BUCKET_NAME" 2>/dev/null; then
+            echo "State bucket $BUCKET_NAME already exists, skipping bootstrap"
+            echo "ran=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "State bucket $BUCKET_NAME does not exist, running bootstrap..."
+          echo "ran=true" >> $GITHUB_OUTPUT
+          
+          mkdir -p bootstrap
+          cd bootstrap
           
           echo "Removing existing resources..."
           
@@ -76,7 +91,6 @@ jobs:
             else
               echo "$bucket does not exist, skipping deletion"
             fi
-            # Wait for bucket to be fully deleted
             ATTEMPTS=20
             DELAY=5
             for ((i=1; i<=$ATTEMPTS; i++)); do
@@ -94,9 +108,8 @@ jobs:
             fi
           }
           
-          # Empty and delete both buckets
+          # Empty and delete website bucket (if exists)
           empty_and_delete_bucket "$WEBSITE_BUCKET"
-          empty_and_delete_bucket "$BUCKET_NAME"
           
           # Detach and delete IAM policies
           echo "Detaching policies from GitHubActionsRole..."
@@ -139,7 +152,8 @@ jobs:
 
   apply:
     name: Terraform Apply and Deploy
-    needs: bootstrap
+    needs: [bootstrap]
+    if: always() && (needs.bootstrap.outputs.ran == 'true' || !contains(fromJson('[]'), 'aws s3 ls s3://tfs-${{ secrets.AWS_ACCOUNT_ID }}') == false)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
@@ -169,14 +183,15 @@ jobs:
       - name: Check CloudFront Distribution Exists
         id: check-cloudfront
         run: |
-          DISTRIBUTION_ID=$(aws cloudfront list-distributions --query 'DistributionList.Items[?Origins.Items[0].DomainName==`${{ secrets.S3_BUCKET }}.s3.amazonaws.com`].Id' --output text)
-          if [ -n "$DISTRIBUTION_ID" ]; then
+          # Query for distribution ID, handle empty result explicitly
+          DISTRIBUTION_ID=$(aws cloudfront list-distributions --query 'DistributionList.Items[?Origins.Items[0].DomainName==`${{ secrets.S3_BUCKET }}.s3.amazonaws.com`].Id' --output text 2>/dev/null)
+          if [ -z "$DISTRIBUTION_ID" ] || [ "$DISTRIBUTION_ID" = "None" ]; then
+            echo "No CloudFront distribution found for ${{ secrets.S3_BUCKET }}.s3.amazonaws.com"
+            echo "distribution_exists=false" >> $GITHUB_OUTPUT
+          else
             echo "CloudFront distribution found: $DISTRIBUTION_ID"
             echo "CLOUDFRONT_DISTRIBUTION_ID=$DISTRIBUTION_ID" >> $GITHUB_ENV
             echo "distribution_exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "No CloudFront distribution found for ${{ secrets.S3_BUCKET }}.s3.amazonaws.com"
-            echo "distribution_exists=false" >> $GITHUB_OUTPUT
           fi
       - name: Invalidate CloudFront Cache
         if: steps.check-cloudfront.outputs.distribution_exists == 'true'
