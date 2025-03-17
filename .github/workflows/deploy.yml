@@ -28,10 +28,6 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
       - name: Install Terraform
         uses: hashicorp/setup-terraform@v3
-      - name: Log Commit SHA
-        run: |
-          echo "Running on commit: ${GITHUB_SHA}"
-          git log -1
       - name: Tear Down and Bootstrap Terraform State Bucket and Website Hosting Bucket
         id: check-and-run
         run: |
