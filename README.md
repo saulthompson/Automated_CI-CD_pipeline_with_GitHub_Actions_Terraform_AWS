@@ -22,7 +22,7 @@ I considered an alternative solution, in which I would host the website in an S3
 
 Create a GitHub repo and set it as the remote for this repository.
 
-All initial credentials are managed via GitHub Secrets. Make sure to set WEBSITE_PASSWORD and WEBSITE_USERNAME, as well as AWS_ACCESS_KEY and AWS_SECRET_ACCESS_KEY in gh secrets.
+All initial credentials are managed via GitHub Secrets. Make sure to set WEBSITE_PASSWORD and WEBSITE_USERNAME, as well as AWS_ACCESS_KEY and AWS_SECRET_ACCESS_KEY in gh secrets. You can use the credentials.sh script to this. Make sure to first set all the relevant credentials as environment variables in the environment where the shell script executes.
 
 Make any desired changes to the web directory, commit, and push to the remote. This will automatically trigger the GHA workflow, which will deploy all necessary architecture on AWS. 
 
