@@ -193,6 +193,7 @@ jobs:
             echo "CLOUDFRONT_DISTRIBUTION_ID=$DISTRIBUTION_ID" >> $GITHUB_ENV
             echo "distribution_exists=true" >> $GITHUB_OUTPUT
           fi
+          
       - name: Invalidate CloudFront Cache
         if: steps.check-cloudfront.outputs.distribution_exists == 'true'
         run: |
