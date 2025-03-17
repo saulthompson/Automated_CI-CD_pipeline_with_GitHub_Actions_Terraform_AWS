@@ -17,7 +17,6 @@ data "template_file" "lambda_auth" {
   }
 }
 
-
 resource "aws_iam_role" "lambda_exec" {
   name = "lambda-exec-role-${var.account_id}"
   assume_role_policy = jsonencode({

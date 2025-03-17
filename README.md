@@ -1,36 +1,49 @@
-# In a nutshell:
+# Saul's Cloud-Deployment-Challenge
 
-Cloud Deployment Challenge is brought to you by your friends at [Last Call Media](https://www.lastcallmedia.com), it is designed to assess your skills and to see how you solve problems. Please fork this repo and then use a common IaC tool to host the content in `web/` on AWS and password protect the hosted site
+# Approach
 
-We anticipate this will take about two hours. If you're still working on it after two hours please stop and send us what you have. This is more about seeing how you approach the problem
+My basic idea is to fully automate the whole process with GitHub Actions, including bootstrapping of 
+an S3 bucket for the terraform backend.
 
-You have full access to `us-east-1` and `us-west-2`. Credentials should have been provided separately. You can generate as many as you want but those expire after an hour. If you plug them into `credentials.sh` you'll get credentials back that don't expire
+I configured OpenID Connect to allow GHA to assume a temporary IAM role and interact with AWS resources.
+On the first bootstrapping run, AWS credentials must be stored as GitHub Secrets. However, in subsequent runs, the credentials are no longer needed thanks to the OIDC setup.
 
----
-### Your solution should:
+Whenever a change is pushed to the remote github repo, the workflow is triggered, and new content is synced to an S3 bucket where the website is hosted.
 
-- Be reusable. It should be possible to apply it to any AWS account and GitHub repo with the necessary credentials
-- Automatically update the webpage when it’s changed in the repo
-- Consider maintainability. The less maintenance it’ll require in the future, the better
-- Be fully automated with no steps that need to be completed in the console
-- Take security into account. Security is hard and your solution doesn’t need to be perfect. It’s ok to take some shortcuts if you call out what you’d do in production to make it safer
-- Be inexpensive
+Cloudfront is used together with the website-hosting S3 bucket to provide a lambda edge function which implements user authentication using Basic Auth. The reason I used a lambda edge function with cloudfront, besides ease of use, is because of the cost-saving efficacy of cloudfront edge caching and serverless functions. Other cost-saving measures include the fact that GHA workflows are free for up to 2,000 minutes per month, and the teardown measures I implemented in the workflow, which prevent orphaned AWS resources.
 
----
-### Deliverables:
+# N.B. incomplete status of project
 
-- A URL that can be accessed from the internet and prompts for a username and password
-	- It’s fine if the URL contains an AWS-owned domain or an IP. After authenticating, the site in `web/` is displayed by a web browser
-- Username and password that we can use to authenticate
-- Link to the forked repo containing your solution
-- A README with a brief explanation of your solution and anything else you’d like us to know
+My approach relies on creating a cloudfront distribution. Unfortunately, my AWS account remains unverified, despite my attempts over the past days to complete the verification process. As a result, I am not authorized to create cloudfront distributions in my account, and have been unable to complete end-to-end testing. 
 
-**Please be prepared to talk about your solution and to help troubleshoot if we can’t make it work**
+I considered an alternative solution, in which I would host the website in an S3 bucket without cloudfront, and implement credential authentication by adding a js file with an authentication flow interacting directly with the DOM to the web directory. I ultimately decided to leave my current, untested implementation, because it's a better solution overall, and in the interests of time.
 
----
-### Extras:
+# Instructions
 
-Some basic scaffolding you may find useful is included but please feel free to use other tools if you prefer
+Create a GitHub repo and set it as the remote for this repository.
 
-We don't expect you to write the auth stuff. There are lots of examples on GitHub if you'd like to use one of those. [For example](https://gist.githubusercontent.com/jeroenvollenbrock/94edbbc62adc986d6d6a9a3076e66f5b/raw/259840af8dc2408f2be142588e41aebfa76c44b7/aws-cloudfront-basic-auth.js)
+All initial credentials are managed via GitHub Secrets. Make sure to set WEBSITE_PASSWORD and WEBSITE_USERNAME, as well as AWS_ACCESS_KEY and AWS_SECRET_ACCESS_KEY in gh secrets.
+
+Make any desired changes to the web directory, commit, and push to the remote. This will automatically trigger the GHA workflow, which will deploy all necessary architecture on AWS. 
+
+Find the URL for your website in the AWS Cloudfront console.
+
+
+# Maintainability
+
+I made every effort to parameterize credentials and other variable values for maintainability.
+
+Nonetheless, there are some changes that might need to be implemented in the future:
+
+1. It might be necessary to update github's thumbprint-list for the OIDC setup in the github_actions_integration module.
+ 
+2. Care should be taken to remove long-lived aws credentials from github secrets after bootstrapping.
+
+3. It might be necessary to update the template file relative path in modules/cloudfront/main.tf in different environments. I made a local version of lambda.zip for use in local development. In the GHA workflow, the index.js.tlp file is zipped dynamically.
+
+# Security
+
+The use of OpenID Connect is more secure in the long run than relying on AWS credentials stored indefinitely in GitHub Secrets.
+
+In general, I aim to follow the principle of least permissions. However, for the purposes of this project, I just universal permissions in various places in the interest of time. In production, these would need to be tightened up.
 
