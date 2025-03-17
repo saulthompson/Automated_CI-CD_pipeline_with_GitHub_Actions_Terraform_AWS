@@ -32,78 +32,92 @@ jobs:
         run: |
           echo "Running on commit: ${GITHUB_SHA}"
           git log -1
-      - name: Tear Down and Bootstrap Terraform State Bucket
+      - name: Tear Down and Bootstrap Terraform State Bucket and Website Hosting Bucket
         id: check-and-run
         run: |
           BUCKET_NAME="tfs-${{ secrets.AWS_ACCOUNT_ID }}"
           WEBSITE_BUCKET="${{ secrets.S3_BUCKET }}-${{ secrets.AWS_ACCOUNT_ID }}"
           
-          if aws s3 ls "s3://$BUCKET_NAME" 2>/dev/null; then
-            echo "State bucket $BUCKET_NAME already exists, skipping bootstrap"
-            echo "ran=false" >> $GITHUB_OUTPUT
-            exit 0
+          if aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null; then
+            echo "Bucket $BUCKET_NAME exists and is accessible."
+          else
+            echo "Bucket $BUCKET_NAME does not exist or access denied."
           fi
           
           echo "State bucket $BUCKET_NAME does not exist, running bootstrap..."
-          echo "ran=true" >> $GITHUB_OUTPUT
           
-          mkdir -p bootstrap
-          cd bootstrap
-          
-          echo "Removing existing resources..."
-          
+         # Parameters for retries
+          ATTEMPTS=20
+          INITIAL_DELAY=5
+
+          log() {
+            echo "[INFO] $1"
+          }
+
+          warn() {
+            echo "[WARN] $1"
+          }
+
+          err() {
+            echo "[ERROR] $1" >&2
+          }
+
           empty_and_delete_bucket() {
-            local bucket=$1
-            echo "Checking if $bucket exists..."
-            if aws s3 ls "s3://$bucket" 2>/dev/null; then
-              echo "Checking if $bucket has objects..."
-              OBJECT_COUNT=$(aws s3api list-objects-v2 --bucket "$bucket" --query 'Contents | length(@)' --output text 2>/dev/null || echo 0)
+            local bucket="$1"
+            log "Checking if bucket '$bucket' exists..."
+            if aws s3api head-bucket --bucket "$bucket" 2>/dev/null; then
+              log "Bucket '$bucket' found."
+
+              OBJECT_COUNT=$(aws s3api list-objects-v2 --bucket "$bucket" --query 'KeyCount' --output text || echo 0)
               if [ "$OBJECT_COUNT" -gt 0 ]; then
-                echo "$bucket has $OBJECT_COUNT objects, emptying it..."
-                aws s3 rm "s3://$bucket" --recursive || { echo "Failed to empty $bucket"; exit 1; }
-                ATTEMPTS=20
-                DELAY=5
-                for ((i=1; i<=$ATTEMPTS; i++)); do
-                  OBJECT_COUNT=$(aws s3api list-objects-v2 --bucket "$bucket" --query 'Contents | length(@)' --output text 2>/dev/null || echo 0)
-                  if [ "$OBJECT_COUNT" -gt 0 ]; then
-                    echo "$bucket still has $OBJECT_COUNT objects, waiting $DELAY seconds (attempt $i/$ATTEMPTS)..."
-                    sleep $DELAY
-                  else
-                    echo "$bucket is now empty"
+                warn "Bucket '$bucket' has $OBJECT_COUNT objects, emptying..."
+                aws s3 rm "s3://$bucket" --recursive || { err "Failed to empty '$bucket'"; exit 1; }
+
+                for ((i=1, delay=$INITIAL_DELAY; i<=$ATTEMPTS; i++, delay*=2)); do
+                  OBJECT_COUNT=$(aws s3api list-objects-v2 --bucket "$bucket" --query 'KeyCount' --output text || echo 0)
+                  if [ "$OBJECT_COUNT" -eq 0 ]; then
+                    log "'$bucket' is now empty."
                     break
                   fi
+                  warn "'$bucket' still has $OBJECT_COUNT objects. Retrying in $delay seconds (attempt $i/$ATTEMPTS)..."
+                  sleep $delay
                 done
-                if [ $i -gt $ATTEMPTS ]; then
-                  echo "Error: $bucket still has objects after $ATTEMPTS attempts"
+
+                if [ "$OBJECT_COUNT" -gt 0 ]; then
+                  err "Bucket '$bucket' still not empty after $ATTEMPTS attempts."
                   exit 1
                 fi
               else
-                echo "$bucket is already empty"
+                log "Bucket '$bucket' is already empty."
               fi
-              echo "Deleting $bucket..."
-              aws s3 rb "s3://$bucket" --force || { echo "Failed to delete $bucket"; exit 1; }
+
+              log "Deleting bucket '$bucket'..."
+              aws s3 rb "s3://$bucket" --force || { err "Failed to delete '$bucket'"; exit 1; }
             else
-              echo "$bucket does not exist, skipping deletion"
+              warn "Bucket '$bucket' does not exist, skipping deletion."
+              return
             fi
-            ATTEMPTS=20
-            DELAY=5
-            for ((i=1; i<=$ATTEMPTS; i++)); do
-              if aws s3 ls "s3://$bucket" 2>/dev/null; then
-                echo "$bucket still exists, waiting $DELAY seconds (attempt $i/$ATTEMPTS)..."
-                sleep $DELAY
+
+            # Confirm deletion
+            for ((i=1, delay=$INITIAL_DELAY; i<=$ATTEMPTS; i++, delay*=2)); do
+              if aws s3api head-bucket --bucket "$bucket" 2>/dev/null; then
+                warn "'$bucket' still exists, retrying deletion check in $delay seconds (attempt $i/$ATTEMPTS)..."
+                sleep $delay
               else
-                echo "$bucket successfully deleted"
-                break
+                log "'$bucket' successfully deleted."
+                return
               fi
             done
-            if [ $i -gt $ATTEMPTS ]; then
-              echo "Error: $bucket still exists after $ATTEMPTS attempts"
-              exit 1
-            fi
+
+            err "'$bucket' still exists after $ATTEMPTS attempts."
+            exit 1
           }
-          
+
           empty_and_delete_bucket "$WEBSITE_BUCKET"
-          
+          empty_and_delete_bucket "$BUCKET_NAME"
+        
+        name: Teardown existing roles and policies 
+        run: |
           echo "Detaching policies from GitHubActionsRole..."
           aws iam detach-role-policy --role-name GitHubActionsRole --policy-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:policy/GitHubActionsPolicy" 2>/dev/null || echo "GitHubActionsPolicy not attached"
           aws iam detach-role-policy --role-name GitHubActionsRole --policy-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:policy/GitHubS3UploadPolicy" 2>/dev/null || echo "GitHubS3UploadPolicy not attached"
@@ -116,38 +130,36 @@ jobs:
           aws iam delete-policy --policy-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:policy/GitHubActionsPolicy" 2>/dev/null || echo "GitHubActionsPolicy not found"
           aws iam delete-policy --policy-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:policy/GitHubS3UploadPolicy" 2>/dev/null || echo "GitHubS3UploadPolicy not found"
           
-          echo "Deleting Lambda execution role..."
-          aws iam detach-role-policy --role-name lambda-exec-role-${{ secrets.AWS_ACCOUNT_ID }} --policy-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:policy/lambda-logs-${{ secrets.AWS_ACCOUNT_ID }}" 2>/dev/null || echo "Lambda logs policy not attached"
-          aws iam delete-role --role-name lambda-exec-role-${{ secrets.AWS_ACCOUNT_ID }} 2>/dev/null || echo "lambda-exec-role-${{ secrets.AWS_ACCOUNT_ID }} not found or already deleted"
-          aws iam delete-policy --policy-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:policy/lambda-logs-${{ secrets.AWS_ACCOUNT_ID }}" 2>/dev/null || echo "lambda-logs-${{ secrets.AWS_ACCOUNT_ID }} policy not found"
+          log "Deleting Lambda function..."
+          if aws lambda get-function --function-name basic-auth-${{ secrets.AWS_ACCOUNT_ID }} 2>/dev/null; then
+            aws lambda delete-function --function-name basic-auth-${{ secrets.AWS_ACCOUNT_ID }} || warn "Failed to delete Lambda function"
+            log "Waiting for Lambda deletion to propagate..."
+            sleep 15
+          else
+            warn "Lambda function basic-auth-${{ secrets.AWS_ACCOUNT_ID }} not found"
+          fi
           
-          echo "Deleting lambda function..."
-          aws lambda delete-function --function-name basic-auth-${{ secrets.AWS_ACCOUNT_ID }} || echo "Failed to delete basic-auth-${{ secrets.AWS_ACCOUNT_ID }}"
-          echo "Waiting 10 seconds for Lambda deletion to propagate..."
-          sleep 10
+          log "Detaching policies from Lambda execution role..."
+          aws iam detach-role-policy --role-name lambda-exec-role-${{ secrets.AWS_ACCOUNT_ID }} --policy-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:policy/lambda-logs-${{ secrets.AWS_ACCOUNT_ID }}" 2>/dev/null || warn "Lambda logs policy not attached"
+
+          log "Deleting Lambda execution role..."
+          aws iam delete-role --role-name lambda-exec-role-${{ secrets.AWS_ACCOUNT_ID }} 2>/dev/null || warn "Lambda execution role not found or locked"
+
+          log "Deleting Lambda logs policy..."
+          aws iam delete-policy --policy-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:policy/lambda-logs-${{ secrets.AWS_ACCOUNT_ID }}" 2>/dev/null || warn "Lambda logs policy not found"
 
           echo "Deleting OIDC provider..."
           aws iam delete-open-id-connect-provider --open-id-connect-provider-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:oidc-provider/token.actions.githubusercontent.com" 2>/dev/null || echo "OIDC provider not found"
           
-          cat <<EOF > bootstrap.tf
-          provider "aws" {
-            region = "${{ env.AWS_REGION }}"
-          }
-          data "aws_caller_identity" "current" {}
-          module "tfstate_s3" {
-            source     = "../modules/tfstate_s3"
-            account_id = data.aws_caller_identity.current.account_id
-          }
-          module "github_actions_integration" {
-            source      = "../modules/github_actions_integration"
-            account_id  = data.aws_caller_identity.current.account_id
-            github_repo = "${{ github.repository }}"
-            bucket_arn  = module.tfstate_s3.bucket_arn
-          }
-          EOF
-          
-          rm -rf .terraform terraform.tfstate*
-          terraform init -no-color || { echo "terraform init failed"; exit 1; }
+      - name: Terraform Init and Apply (Bootstrap)
+        working-directory: ./bootstrap
+        run: |
+          terraform init -no-color || { echo "terraform init failed"; exit 1; }\
+            -backend-config="bucket=$BUCKET_NAME" \
+            -backend-config="key=state/terraform.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
+            -backend-config="encrypt=true"
+
           terraform apply -auto-approve -no-color || { echo "terraform apply failed"; exit 1; }
         env:
           TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
