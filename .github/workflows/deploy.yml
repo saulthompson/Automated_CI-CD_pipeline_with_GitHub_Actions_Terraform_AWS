@@ -17,8 +17,6 @@ jobs:
   bootstrap:
     name: Bootstrap Terraform State and IAM
     runs-on: ubuntu-latest
-    # Note: GHA can't run AWS CLI in 'if', so this is indicative; real check is in script
-    if: "!contains(fromJson('[]'), 'aws s3 ls s3://tfs-${{ secrets.AWS_ACCOUNT_ID }}')"
     outputs:
       ran: ${{ steps.check-and-run.outputs.ran }}
     steps:
@@ -153,7 +151,8 @@ jobs:
   apply:
     name: Terraform Apply and Deploy
     needs: [bootstrap]
-    if: always() && (needs.bootstrap.outputs.ran == 'true' || !contains(fromJson('[]'), 'aws s3 ls s3://tfs-${{ secrets.AWS_ACCOUNT_ID }}') == false)
+    # Run if bootstrap ran or if it was skipped (implying bucket exists)
+    if: always() && (needs.bootstrap.result == 'skipped' || needs.bootstrap.outputs.ran == 'true')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
@@ -193,7 +192,6 @@ jobs:
             echo "CLOUDFRONT_DISTRIBUTION_ID=$DISTRIBUTION_ID" >> $GITHUB_ENV
             echo "distribution_exists=true" >> $GITHUB_OUTPUT
           fi
-          
       - name: Invalidate CloudFront Cache
         if: steps.check-cloudfront.outputs.distribution_exists == 'true'
         run: |
