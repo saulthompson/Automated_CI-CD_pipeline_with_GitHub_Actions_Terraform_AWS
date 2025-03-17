@@ -40,7 +40,6 @@ jobs:
           BUCKET_NAME="tfs-${{ secrets.AWS_ACCOUNT_ID }}"
           WEBSITE_BUCKET="${{ secrets.S3_BUCKET }}-${{ secrets.AWS_ACCOUNT_ID }}"
           
-          # Check if state bucket exists
           if aws s3 ls "s3://$BUCKET_NAME" 2>/dev/null; then
             echo "State bucket $BUCKET_NAME already exists, skipping bootstrap"
             echo "ran=false" >> $GITHUB_OUTPUT
@@ -55,7 +54,6 @@ jobs:
           
           echo "Removing existing resources..."
           
-          # Function to empty and delete a bucket
           empty_and_delete_bucket() {
             local bucket=$1
             echo "Checking if $bucket exists..."
@@ -106,10 +104,8 @@ jobs:
             fi
           }
           
-          # Empty and delete website bucket (if exists)
           empty_and_delete_bucket "$WEBSITE_BUCKET"
           
-          # Detach and delete IAM policies
           echo "Detaching policies from GitHubActionsRole..."
           aws iam detach-role-policy --role-name GitHubActionsRole --policy-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:policy/GitHubActionsPolicy" 2>/dev/null || echo "GitHubActionsPolicy not attached"
           aws iam detach-role-policy --role-name GitHubActionsRole --policy-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:policy/GitHubS3UploadPolicy" 2>/dev/null || echo "GitHubS3UploadPolicy not attached"
@@ -151,6 +147,7 @@ jobs:
   apply:
     name: Terraform Apply and Deploy
     needs: [bootstrap]
+    if: always() && (needs.bootstrap.result == 'skipped' || needs.bootstrap.outputs.ran == 'true')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
@@ -162,10 +159,16 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
       - name: Install Terraform
         uses: hashicorp/setup-terraform@v3
-      - name: Log Commit SHA
+      - name: Install Node.js for Lambda
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Package Lambda Function
         run: |
-          echo "Running on commit: ${GITHUB_SHA}"
-          git log -1
+          cd lambda
+          npm init -y
+          zip -r ../lambda.zip index.js
+          cd ..
       - name: Run Terraform
         run: |
           echo "Running apply job - v3 - timestamp: $(date +%s)"
@@ -176,14 +179,19 @@ jobs:
           TF_LOG: DEBUG
       - name: Sync files to S3
         run: |
-          aws s3 sync ./web/ s3://${{ secrets.S3_BUCKET }} --delete
+          aws s3 sync ./ s3://${{ secrets.S3_BUCKET }} --delete
+      - name: Output Protected URL
+        id: output-url
+        run: |
+          PROTECTED_URL=$(terraform output -raw protected_url)
+          echo "Protected URL (username: admin, password: mysecretpassword): $PROTECTED_URL"
+          echo "protected_url=$PROTECTED_URL" >> $GITHUB_OUTPUT
       - name: Check CloudFront Distribution Exists
         id: check-cloudfront
         run: |
-          # Query for distribution ID, handle empty result explicitly
-          DISTRIBUTION_ID=$(aws cloudfront list-distributions --query 'DistributionList.Items[?Origins.Items[0].DomainName==`${{ secrets.S3_BUCKET }}.s3.amazonaws.com`].Id' --output text 2>/dev/null)
+          DISTRIBUTION_ID=$(aws cloudfront list-distributions --query 'DistributionList.Items[?Origins.Items[0].DomainName==`${{ secrets.S3_BUCKET }}.s3.${{ env.AWS_REGION }}.amazonaws.com`].Id' --output text 2>/dev/null)
           if [ -z "$DISTRIBUTION_ID" ] || [ "$DISTRIBUTION_ID" = "None" ]; then
-            echo "No CloudFront distribution found for ${{ secrets.S3_BUCKET }}.s3.amazonaws.com"
+            echo "No CloudFront distribution found for ${{ secrets.S3_BUCKET }}.s3.${{ env.AWS_REGION }}.amazonaws.com"
             echo "distribution_exists=false" >> $GITHUB_OUTPUT
           else
             echo "CloudFront distribution found: $DISTRIBUTION_ID"
