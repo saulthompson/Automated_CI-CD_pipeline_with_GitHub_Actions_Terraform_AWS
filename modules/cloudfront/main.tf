@@ -10,7 +10,7 @@ resource "aws_lambda_function" "basic_auth" {
 }
 
 data "template_file" "lambda_auth" {
-  template = file("${path.module}/lambda-auth.js.tpl")
+  template = file("modules/lambda/index.js.tpl")
   vars = {
     basic_user     = var.website_username
     basic_password = var.website_password
