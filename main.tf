@@ -33,3 +33,7 @@ module "website_s3" {
   source = "./modules/website_s3"
   account_id = var.account_id
 }
+
+output "protected_url" {
+  value = module.cloudfront.cloudfront_url
+}

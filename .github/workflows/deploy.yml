@@ -231,3 +231,4 @@ jobs:
         if: steps.check-cloudfront.outputs.distribution_exists == 'true'
         run: |
           aws cloudfront create-invalidation --distribution-id ${{ env.CLOUDFRONT_DISTRIBUTION_ID }} --paths "/*"
+          echo "Invalidated cache for: ${{ steps.output-url.outputs.protected_url }}"
