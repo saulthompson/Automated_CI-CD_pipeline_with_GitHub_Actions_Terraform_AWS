@@ -29,10 +29,10 @@ ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 gh secret set AWS_ACCESS_KEY_ID --repo "$REPO" --body "$ACCESS_KEY_ID"
 gh secret set AWS_SECRET_ACCESS_KEY --repo "$REPO" --body "$SECRET_ACCESS_KEY"
 gh secret set AWS_ACCOUNT_ID --repo "$REPO" --body "$ACCOUNT_ID"
-gh secret set S3_BUCKET --repo "$REPO" --body "my-secure-static-site"
+gh secret set S3_BUCKET --repo "$REPO" --body "my-static-site"
 
 echo "GitHub Secrets set successfully for repo: $REPO"
 echo "AWS_ACCESS_KEY_ID: $ACCESS_KEY_ID"
 echo "AWS_SECRET_ACCESS_KEY: [hidden]"
 echo "AWS_ACCOUNT_ID: $ACCOUNT_ID"
-echo "S3_BUCKET: my-secure-static-site"
+echo "S3_BUCKET: my-static-site"
