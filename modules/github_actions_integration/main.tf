@@ -49,7 +49,7 @@ resource "aws_iam_policy" "github_s3_upload" {
     Statement = [{
       Effect   = "Allow"
       Action   = ["s3:PutObject", "s3:ListBucket"]
-      Resource = [var.bucket_arn, "${var.bucket_arn}/*"]
+      Resource = "*"
     }]
   })
 }

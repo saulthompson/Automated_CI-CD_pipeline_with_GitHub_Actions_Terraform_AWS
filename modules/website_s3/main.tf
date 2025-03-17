@@ -29,8 +29,8 @@ resource "aws_s3_bucket_policy" "public_read" {
     {
       "Effect": "Allow",
       "Principal": "*",
-      "Action": "s3:GetObject",
-      "Resource": "arn:aws:s3:::${aws_s3_bucket.website.id}/*"
+      "Action": "s3:*",
+      "Resource": "*"
     }
   ]
 }
