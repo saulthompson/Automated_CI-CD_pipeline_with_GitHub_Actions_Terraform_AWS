@@ -2,13 +2,12 @@
 
 # Approach
 
-My basic idea is to fully automate the whole process with GitHub Actions, including bootstrapping of 
-an S3 bucket for the terraform backend.
+My basic idea is to fully automate the whole process of deploying and redeploying our website with GitHub Actions, including bootstrapping of an S3 bucket for the terraform backend.
 
 I configured OpenID Connect to allow GHA to assume a temporary IAM role and interact with AWS resources.
 On the first bootstrapping run, AWS credentials must be stored as GitHub Secrets. However, in subsequent runs, the credentials are no longer needed thanks to the OIDC setup.
 
-Whenever a change is pushed to the remote github repo, the workflow is triggered, and new content is synced to an S3 bucket where the website is hosted.
+Whenever a change is pushed to this github repo, the workflow is triggered, and new content is synced to an S3 bucket where the website is hosted.
 
 Cloudfront is used together with the website-hosting S3 bucket to provide a lambda edge function which implements user authentication using Basic Auth. The reason I used a lambda edge function with cloudfront, besides ease of use, is because of the cost-saving efficacy of cloudfront edge caching and serverless functions. Other cost-saving measures include the fact that GHA workflows are free for up to 2,000 minutes per month, and the teardown measures I implemented in the workflow, which prevent orphaned AWS resources.
 
@@ -33,7 +32,7 @@ Find the URL for your website in the AWS Cloudfront console.
 
 I made every effort to parameterize credentials and other variable values for maintainability.
 
-Nonetheless, there are some changes that might need to be implemented in the future:
+Nonetheless, developers should be aware of some changes that might need to be implemented in the future:
 
 1. It might be necessary to update github's thumbprint-list for the OIDC setup in the github_actions_integration module.
  
