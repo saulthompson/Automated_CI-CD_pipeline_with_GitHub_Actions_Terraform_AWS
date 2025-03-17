@@ -25,7 +25,7 @@ resource "aws_iam_policy" "github_actions_policy" {
       },
       {
         Effect   = "Allow"
-        Action   = ["cloudfront:ListDistributions", "cloudfront:CreateInvalidation", "cloudfront:GetDistribution", "cloudfront:UpdateDistribution"]
+        Action   = ["cloudfront:ListDistributions", "cloudfront:CreateInvalidation", "cloudfront:GetDistribution", "cloudfront:UpdateDistribution", "lambda:*"]
         Resource = "*"
       },
       {
