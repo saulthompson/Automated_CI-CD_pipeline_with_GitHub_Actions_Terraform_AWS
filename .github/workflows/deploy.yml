@@ -147,7 +147,6 @@ jobs:
   apply:
     name: Terraform Apply and Deploy
     needs: [bootstrap]
-    if: always() && (needs.bootstrap.result == 'skipped' || needs.bootstrap.outputs.ran == 'true')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
