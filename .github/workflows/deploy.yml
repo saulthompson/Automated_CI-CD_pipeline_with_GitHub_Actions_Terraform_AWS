@@ -17,8 +17,6 @@ jobs:
   bootstrap:
     name: Bootstrap Terraform State and IAM
     runs-on: ubuntu-latest
-    outputs:
-      ran: ${{ steps.check-and-run.outputs.ran }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -118,6 +116,15 @@ jobs:
           aws iam delete-policy --policy-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:policy/GitHubActionsPolicy" 2>/dev/null || echo "GitHubActionsPolicy not found"
           aws iam delete-policy --policy-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:policy/GitHubS3UploadPolicy" 2>/dev/null || echo "GitHubS3UploadPolicy not found"
           
+          echo "Deleting Lambda execution role..."
+          aws iam detach-role-policy --role-name lambda-exec-role-${{ secrets.AWS_ACCOUNT_ID }} --policy-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:policy/lambda-logs-${{ secrets.AWS_ACCOUNT_ID }}" 2>/dev/null || echo "Lambda logs policy not attached"
+          aws iam delete-role --role-name lambda-exec-role-${{ secrets.AWS_ACCOUNT_ID }} 2>/dev/null || echo "lambda-exec-role-${{ secrets.AWS_ACCOUNT_ID }} not found or already deleted"
+          aws iam delete-policy --policy-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:policy/lambda-logs-${{ secrets.AWS_ACCOUNT_ID }}" 2>/dev/null || echo "lambda-logs-${{ secrets.AWS_ACCOUNT_ID }} policy not found"
+          
+          echo "Deleting lambda function..."
+          aws lambda delete-function --function-name basic-auth-${{ secrets.AWS_ACCOUNT_ID }} || echo "Failed to delete basic-auth-${{ secrets.AWS_ACCOUNT_ID }}"
+          echo "Waiting 10 seconds for Lambda deletion to propagate..."
+          sleep 10
           echo "Deleting OIDC provider..."
           aws iam delete-open-id-connect-provider --open-id-connect-provider-arn "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:oidc-provider/token.actions.githubusercontent.com" 2>/dev/null || echo "OIDC provider not found"
           
@@ -162,12 +169,22 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - name: Debug IAM Permissions
+        run: |
+          echo "Assumed Role Identity:"
+          aws sts get-caller-identity
+          echo "Listing Lambda Functions (test permissions):"
+          aws lambda list-functions || echo "Failed to list Lambda functions"
       - name: Package Lambda Function
         run: |
           cd lambda
           npm init -y
           zip -r ../lambda.zip index.js.tpl
           cd ..
+      - name: Wait for IAM Propagation
+        run: |
+          echo "Waiting 30 seconds for IAM policy propagation..."
+          sleep 30
       - name: Run Terraform
         run: |
           echo "Running apply job - v3 - timestamp: $(date +%s)"
