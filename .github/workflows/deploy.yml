@@ -158,4 +158,27 @@ jobs:
       - name: Run Terraform
         run: |
           echo "Running apply job - v3 - timestamp: $(date +%s)"
-          BUCKET_NAME="tfs-${
+          BUCKET_NAME="tfs-${{ secrets.AWS_ACCOUNT_ID }}"
+          terraform init -no-color -backend-config="bucket=$BUCKET_NAME" -backend-config="key=state/terraform.tfstate" -backend-config="region=${{ env.AWS_REGION }}" || { echo "terraform init failed"; exit 1; }
+          terraform apply -auto-approve -no-color -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}"
+        env:
+          TF_LOG: DEBUG
+      - name: Sync files to S3
+        run: |
+          aws s3 sync ./ s3://${{ secrets.S3_BUCKET }} --delete
+      - name: Check CloudFront Distribution Exists
+        id: check-cloudfront
+        run: |
+          DISTRIBUTION_ID=$(aws cloudfront list-distributions --query 'DistributionList.Items[?Origins.Items[0].DomainName==`${{ secrets.S3_BUCKET }}.s3.amazonaws.com`].Id' --output text)
+          if [ -n "$DISTRIBUTION_ID" ]; then
+            echo "CloudFront distribution found: $DISTRIBUTION_ID"
+            echo "CLOUDFRONT_DISTRIBUTION_ID=$DISTRIBUTION_ID" >> $GITHUB_ENV
+            echo "distribution_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "No CloudFront distribution found for ${{ secrets.S3_BUCKET }}.s3.amazonaws.com"
+            echo "distribution_exists=false" >> $GITHUB_OUTPUT
+          fi
+      - name: Invalidate CloudFront Cache
+        if: steps.check-cloudfront.outputs.distribution_exists == 'true'
+        run: |
+          aws cloudfront create-invalidation --distribution-id ${{ env.CLOUDFRONT_DISTRIBUTION_ID }} --paths "/*"
