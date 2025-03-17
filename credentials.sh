@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
 
-export AWS_ACCESS_KEY_ID=
-export AWS_SECRET_ACCESS_KEY=
-export AWS_SESSION_TOKEN=
-
 GH_USERNAME=$(gh api user --jq '.login')
 REPO_NAME=$(git config --get remote.origin.url | sed 's#.*/##; s#.git##')
 REPO="${GH_USERNAME}/${REPO_NAME}"

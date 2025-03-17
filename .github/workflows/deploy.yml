@@ -190,7 +190,7 @@ jobs:
           echo "Running apply job - v3 - timestamp: $(date +%s)"
           BUCKET_NAME="tfs-${{ secrets.AWS_ACCOUNT_ID }}"
           terraform init -no-color -backend-config="bucket=$BUCKET_NAME" -backend-config="key=state/terraform.tfstate" -backend-config="region=${{ env.AWS_REGION }}" || { echo "terraform init failed"; exit 1; }
-          terraform apply -auto-approve -no-color -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}"
+          terraform apply -auto-approve -no-color -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}"
         env:
           TF_LOG: DEBUG
       - name: Sync files to S3
