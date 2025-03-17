@@ -10,3 +10,8 @@ variable "account_id" {
 variable "bucket_arn" {
   type        = string
 }
+
+variable "github_thumbprint" {
+  default = "6938fd4d98bab03faadb97b34396831e3780aea1"
+  description = "OIDC thumbprint for GitHub Actions"
+}
