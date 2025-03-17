@@ -1,5 +1,15 @@
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
 resource "aws_s3_bucket" "website" {
   bucket = "my-static-site-${var.account_id}"
+  provider = aws.us_east_1
 }
 
 resource "aws_s3_bucket_public_access_block" "website" {
@@ -8,6 +18,7 @@ resource "aws_s3_bucket_public_access_block" "website" {
   block_public_policy     = false
   ignore_public_acls      = false
   restrict_public_buckets = false
+  provider = aws.us_east_1
 }
 
 resource "aws_s3_bucket_policy" "public_read" {
@@ -33,4 +44,5 @@ resource "aws_s3_bucket_policy" "public_read" {
     ]
   })
   depends_on = [aws_s3_bucket_public_access_block.website]
+  provider    = aws.us_east_1
 }

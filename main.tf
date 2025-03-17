@@ -34,6 +34,9 @@ module "cloudfront" {
 module "website_s3" {
   source = "./modules/website_s3"
   account_id = var.account_id
+  providers = {
+    aws.us_east_1 = aws.us_east_1
+  }
 }
 
 output "protected_url" {
