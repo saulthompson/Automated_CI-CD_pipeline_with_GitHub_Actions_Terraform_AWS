@@ -21,7 +21,20 @@ I considered an alternative solution, in which I would host the website in an S3
 
 Create a GitHub repo and set it as the remote for this repository.
 
-All initial credentials are managed via GitHub Secrets. Make sure to set WEBSITE_PASSWORD and WEBSITE_USERNAME, as well as AWS_ACCESS_KEY and AWS_SECRET_ACCESS_KEY in gh secrets. You can use the credentials.sh script to this. Make sure to first set all the relevant credentials as environment variables in the environment where the shell script executes.
+All initial credentials are managed via GitHub Secrets. Make sure to set WEBSITE_PASSWORD and WEBSITE_USERNAME, as well as AWS_ACCESS_KEY and AWS_SECRET_ACCESS_KEY in GitHub secrets inside your remote repo. 
+
+If you have root access to the AWS account you are using, you can use the credentials.sh script to set the GH secrets, and to create a dedicated IAM user with its own credentials. If you do this, make sure to first set all the relevant credentials as environment variables in the environment where the shell script executes.
+
+If you don't have root access to the AWS account you are using, simply enter your AWS credentials as GitHub actions secrets at https://github.com/<username>/<repo-name>/settings/secrets/actions. You will need to, at minimum, enter separate values for each of the following secret keys:
+
+- AWS_ACCOUNT_ID
+- AWS_ACCESS_KEY_ID
+- AWS_SECRET_ACCESS_KEY
+- S3_BUCKET (choose any value you like)
+- WEBSITE_PASSWORD (choose any value you like)
+- WEBSITE_USERNAME (choose any value you like)
+
+WEBSITE_PASSWORD and WEBSITE_USERNAME can be set to any value - these will be the Basic Auth credentials for your S3/cloudfront hosted website. The value you set for S3_BUCKET will be the name of the S3 bucket that hosts your website.
 
 Make any desired changes to the web directory, commit, and push to the remote. This will automatically trigger the GHA workflow, which will deploy all necessary architecture on AWS. 
 
