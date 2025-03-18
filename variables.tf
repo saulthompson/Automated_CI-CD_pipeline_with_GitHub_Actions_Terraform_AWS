@@ -8,10 +8,10 @@ variable "github_repo" {
   type        = string
 }
 
-variable "website_password" {
+variable "website_username" {
   type = string
 }
 
-variable "website_username" {
+variable "website_password" {
   type = string
 }

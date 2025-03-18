@@ -182,7 +182,7 @@ jobs:
           TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
           TF_VAR_website_username: ${{ secrets.WEBSITE_USERNAME }}
           TF_VAR_website_password: ${{ secrets.WEBSITE_PASSWORD }}
-      - name: Debug Lambda ZIP Creation
+      - name: Create Lambda ZIP
         run: |
           echo "Current directory: $(pwd)"
           ls -R .
