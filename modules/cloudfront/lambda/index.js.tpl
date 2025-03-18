@@ -7,7 +7,8 @@ exports.handler = async (event) => {
   const headers = request.headers
   const authString = "Basic " + Buffer.from(USERNAME + ":" + PASSWORD).toString("base64")
   console.log('auth string: ' + authString)
-  console.log('auth header: " + headers.authorization[0])
+  console.log("auth header: " + headers.authorization)
+  console.log('auth header value: ' + headers.authorization[0])
   
   if (!headers.authorization || headers.authorization[0].value !== authString) {
     return {
