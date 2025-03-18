@@ -12,11 +12,13 @@ variable "account_id" {
 }
 
 variable "website_password" {
-  type = string
+  type    = string
+  default = "password"
 }
 
 variable "website_username" {
-  type = string
+  type    = string
+  default = "user"
 }
 
 variable "oai_id" {
