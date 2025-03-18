@@ -1,27 +1,10 @@
 # Lambda@Edge for Basic Auth
-data "template_file" "lambda_auth" {
-  template = file("${path.module}/lambda/index.js.tpl")
-  vars = {
+resource "local_file" "lambda_auth_rendered" {
+  content = templatefile("${path.module}/lambda/index.js.tpl", {
     basic_user     = var.website_username
     basic_password = var.website_password
-  }
-}
-
-resource "local_file" "lambda_auth_rendered" {
-  content  = data.template_file.lambda_auth.rendered
+  })
   filename = "${path.module}/lambda/index.js"
-}
-
-resource "null_resource" "create_lambda_zip" {
-  triggers = {
-    source_code_hash = sha256("${file("${path.module}/lambda/index.js.tpl")}${var.website_username}${var.website_password}")
-  }
-
-  provisioner "local-exec" {
-    command = "cd ${path.module}/lambda && zip -j ../lambda.zip index.js"
-  }
-
-  depends_on = [local_file.lambda_auth_rendered]
 }
 
 resource "aws_lambda_function" "basic_auth" {
@@ -30,10 +13,8 @@ resource "aws_lambda_function" "basic_auth" {
   runtime          = "nodejs20.x"
   role             = aws_iam_role.lambda_exec.arn
   filename         = "${path.module}/lambda.zip"
-  source_code_hash = base64sha256("${data.template_file.lambda_auth.rendered}${timestamp()}")
+  source_code_hash = base64sha256(file("${path.module}/lambda.zip"))
   publish          = true
-
-  depends_on = [null_resource.create_lambda_zip]
 }
 
 resource "aws_lambda_permission" "allow_cloudfront" {
