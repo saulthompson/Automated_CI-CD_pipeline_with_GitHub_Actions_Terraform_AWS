@@ -157,10 +157,6 @@ jobs:
     needs: [bootstrap]
     runs-on: ubuntu-latest
     steps:
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y zip
       - name: Checkout repo
         uses: actions/checkout@v4
       - name: Configure AWS Credentials with OIDC
@@ -174,20 +170,29 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zip
+      - name: Terraform Init
+        run: |
+          BUCKET_NAME="tfs-${{ secrets.AWS_ACCOUNT_ID }}"
+          terraform init -no-color -backend-config="bucket=$BUCKET_NAME" -backend-config="key=state/terraform.tfstate" -backend-config="region=${{ env.AWS_REGION }}"
+        env:
+          TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
+          TF_VAR_website_username: ${{ secrets.WEBSITE_USERNAME }}
+          TF_VAR_website_password: ${{ secrets.WEBSITE_PASSWORD }}
       - name: Debug Lambda ZIP Creation
         run: |
           echo "Current directory: $(pwd)"
           ls -R modules/cloudfront
-          cd modules/cloudfront/lambda
-          terraform apply -target=module.cloudfront.local_file.lambda_auth_rendered -auto-approve
-          ls -l  # Check for index.js
-          zip -j ../lambda.zip index.js || echo "ZIP command failed"
-          ls -l ../  # Check for lambda.zip
+          terraform apply -target=module.cloudfront.local_file.lambda_auth_rendered -auto-approve -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}"
+          ls -l modules/cloudfront/lambda  # Check for index.js
+          terraform apply -target=module.cloudfront.null_resource.create_lambda_zip -auto-approve -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}"
+          ls -l modules/cloudfront  # Check for lambda.zip
       - name: Run Terraform
         run: |
-          echo "Running apply job - v3 - timestamp: $(date +%s)"
-          BUCKET_NAME="tfs-${{ secrets.AWS_ACCOUNT_ID }}"
-          terraform init -no-color -backend-config="bucket=$BUCKET_NAME" -backend-config="key=state/terraform.tfstate" -backend-config="region=${{ env.AWS_REGION }}" || { echo "terraform init failed"; exit 1; }
+          echo "Running apply job - v5 - timestamp: $(date +%s)"
           terraform apply -auto-approve -no-color -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}"
         env:
           TF_LOG: DEBUG
@@ -205,7 +210,7 @@ jobs:
         run: |
           DISTRIBUTION_ID=$(aws cloudfront list-distributions --query 'DistributionList.Items[?Origins.Items[0].DomainName==`${{ secrets.S3_BUCKET }}.s3.${{ env.AWS_REGION }}.amazonaws.com`].Id' --output text 2>/dev/null)
           if [ -z "$DISTRIBUTION_ID" ] || [ "$DISTRIBUTION_ID" = "None" ]; then
-            echo "No CloudFront distribution found for ${{ secrets.S3_BUCKET }}.s3.${{ env.AWS_REGION }}.amazonaws.com"
+            echo "No CloudFront distribution found"
             echo "distribution_exists=false" >> $GITHUB_OUTPUT
           else
             echo "CloudFront distribution found: $DISTRIBUTION_ID"
