@@ -80,7 +80,7 @@ resource "aws_cloudfront_distribution" "cdn" {
     domain_name = var.bucket_regional_domain_name
     origin_id   = "S3-${var.bucket_name}"
     s3_origin_config {
-      origin_access_identity = "origin_access_identity = "origin-access-identity/cloudfront/${var.oai_id}"
+      origin_access_identity = "origin-access-identity/cloudfront/${var.oai_id}"
     }
   }
   enabled             = true
