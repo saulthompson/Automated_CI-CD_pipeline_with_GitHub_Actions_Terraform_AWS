@@ -14,14 +14,13 @@ resource "local_file" "lambda_auth_rendered" {
 
 resource "null_resource" "create_lambda_zip" {
   triggers = {
-    source_code_hash = filebase64sha256("${path.module}/lambda/index.js")
+    # Use the hash of the template and variables to trigger recreation
+    source_code_hash = sha256("${file("${path.module}/lambda/index.js.tpl")}${var.website_username}${var.website_password}")
   }
 
   provisioner "local-exec" {
     command = "cd ${path.module}/lambda && zip -j ../lambda.zip index.js"
   }
-
- 
 
   depends_on = [local_file.lambda_auth_rendered]
 }
