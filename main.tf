@@ -27,6 +27,7 @@ module "cloudfront" {
   bucket_name                = module.website_s3.bucket_name
   bucket_regional_domain_name = module.website_s3.bucket_regional_domain_name
   account_id                 = var.account_id
+  oai_id                     = module.s3.oai_iam_arn != "" ? reverse(split("/", module.s3.oai_iam_arn))[0] : ""
   website_username           = var.website_username
   website_password           = var.website_password
 }

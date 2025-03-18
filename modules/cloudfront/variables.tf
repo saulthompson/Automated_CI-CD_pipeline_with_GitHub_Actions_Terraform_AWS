@@ -11,10 +11,14 @@ variable "account_id" {
   type = string 
 }
 
-variable website_password {
+variable "website_password" {
   type = string
 }
 
-variable website_username {
+variable "website_username" {
+  type = string
+}
+
+variable "oai_id" {
   type = string
 }
