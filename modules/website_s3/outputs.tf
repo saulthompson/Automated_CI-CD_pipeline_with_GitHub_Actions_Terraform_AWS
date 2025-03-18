@@ -11,5 +11,5 @@ output "bucket_regional_domain_name" {
 }
 
 output "oai_iam_arn" {
-  value = aws_cloudfront_origin_access_identity.oai.iam_arn
+  value = aws_cloudfront_origin_access_identity.oai.id
 }
