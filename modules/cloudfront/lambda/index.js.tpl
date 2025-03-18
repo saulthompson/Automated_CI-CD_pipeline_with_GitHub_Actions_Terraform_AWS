@@ -1,5 +1,5 @@
-const USERNAME = "{{ basic_user }}"
-const PASSWORD = "{{ basic_password }}"
+const USERNAME = "user"
+const PASSWORD = "password"
 
 exports.handler = async (event) => {
   try {
