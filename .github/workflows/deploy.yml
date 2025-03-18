@@ -176,13 +176,6 @@ jobs:
           aws sts get-caller-identity
           echo "Listing Lambda Functions (test permissions):"
           aws lambda list-functions || echo "Failed to list Lambda functions"
-      - name: Package Lambda Function
-        run: |
-          cd lambda
-          npm init -y
-          cp index.js.tpl index.js
-          zip -r ../lambda.zip index.js.tpl
-          cd ..
       - name: Wait for IAM Propagation
         run: |
           echo "Waiting 30 seconds for IAM policy propagation..."
