@@ -185,11 +185,23 @@ jobs:
       - name: Debug Lambda ZIP Creation
         run: |
           echo "Current directory: $(pwd)"
-          ls -R modules/cloudfront
-          terraform apply -target=module.cloudfront.local_file.lambda_auth_rendered -auto-approve -var="github_repo=${{ github.repository }}" -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}"
-          ls -l modules/cloudfront/lambda  # Check for index.js
-          terraform apply -target=module.cloudfront.null_resource.create_lambda_zip -auto-approve -var="github_repo=${{ github.repository }}" -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}"
-          ls -l modules/cloudfront  # Check for lambda.zip
+          ls -R .
+          echo "Cleaning up stray lambda.zip files..."
+          find . -name "lambda.zip" -exec rm -f {} \; || echo "No stray lambda.zip files found"
+          echo "Creating index.js..."
+          terraform apply -target=module.cloudfront.local_file.lambda_auth_rendered -auto-approve -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}"
+          ls -l modules/cloudfront/lambda || echo "No index.js found"
+          echo "Creating lambda.zip..."
+          cd modules/cloudfront/lambda
+          zip -j ../lambda.zip index.js || echo "ZIP creation failed"
+          cd ../../..
+          ls -l modules/cloudfront || echo "No lambda.zip found"
+          if [ -f "modules/cloudfront/lambda.zip" ]; then
+            echo "lambda.zip created successfully at modules/cloudfront/lambda.zip!"
+          else
+            echo "Error: lambda.zip missing"
+            exit 1
+          fi
       - name: Run Terraform
         run: |
           echo "Running apply job - v5 - timestamp: $(date +%s)"
