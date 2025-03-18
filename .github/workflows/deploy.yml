@@ -220,7 +220,7 @@ jobs:
           TF_LOG: DEBUG
       - name: Sync files to S3
         run: |
-          aws s3 sync ./web/ s3://${{ secrets.S3_BUCKET }}-${{ secrets.AWS_ACCOUNT_ID }} --delete
+          aws s3 sync ./web s3://${{ secrets.S3_BUCKET }}-${{ secrets.AWS_ACCOUNT_ID }} --delete
       - name: Output Protected URL
         id: output-url
         run: |
