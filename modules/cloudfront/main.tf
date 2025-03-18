@@ -31,7 +31,7 @@ resource "aws_lambda_function" "basic_auth" {
   runtime          = "nodejs20.x"
   role             = aws_iam_role.lambda_exec.arn
   filename         = "${path.module}/lambda.zip"
-  source_code_hash = filebase64sha256("${path.module}/lambda.zip")
+  source_code_hash = base64sha256(data.template_file.lambda_auth.rendered)
   publish          = true
 
   depends_on = [null_resource.create_lambda_zip]
