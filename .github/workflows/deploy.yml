@@ -186,9 +186,9 @@ jobs:
         run: |
           echo "Current directory: $(pwd)"
           ls -R modules/cloudfront
-          terraform apply -target=module.cloudfront.local_file.lambda_auth_rendered -auto-approve -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}"
+          terraform apply -target=module.cloudfront.local_file.lambda_auth_rendered -auto-approve -var="github_repo=${{ github.repository }}" -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}"
           ls -l modules/cloudfront/lambda  # Check for index.js
-          terraform apply -target=module.cloudfront.null_resource.create_lambda_zip -auto-approve -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}"
+          terraform apply -target=module.cloudfront.null_resource.create_lambda_zip -auto-approve -var="github_repo=${{ github.repository }}" -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}"
           ls -l modules/cloudfront  # Check for lambda.zip
       - name: Run Terraform
         run: |
