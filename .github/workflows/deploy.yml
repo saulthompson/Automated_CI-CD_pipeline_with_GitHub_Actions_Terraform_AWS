@@ -27,6 +27,10 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ env.AWS_REGION }}
+      - name: Set Up Environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zip
       - name: Install Terraform
         uses: hashicorp/setup-terraform@v3
       - name: Log Commit SHA
@@ -195,7 +199,7 @@ jobs:
         id: output-url
         run: |
           PROTECTED_URL=$(terraform output -raw protected_url)
-          echo "Protected URL (username: admin, password: mysecretpassword): $PROTECTED_URL"
+          echo "Protected URL: $PROTECTED_URL"
           echo "protected_url=$PROTECTED_URL" >> $GITHUB_OUTPUT
       - name: Check CloudFront Distribution Exists
         id: check-cloudfront
