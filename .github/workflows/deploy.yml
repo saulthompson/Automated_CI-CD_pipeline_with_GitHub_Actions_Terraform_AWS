@@ -157,6 +157,10 @@ jobs:
     needs: [bootstrap]
     runs-on: ubuntu-latest
     steps:
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zip
       - name: Checkout repo
         uses: actions/checkout@v4
       - name: Configure AWS Credentials with OIDC
@@ -170,16 +174,15 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Debug IAM Permissions
+      - name: Debug Lambda ZIP Creation
         run: |
-          echo "Assumed Role Identity:"
-          aws sts get-caller-identity
-          echo "Listing Lambda Functions (test permissions):"
-          aws lambda list-functions || echo "Failed to list Lambda functions"
-      - name: Wait for IAM Propagation
-        run: |
-          echo "Waiting 30 seconds for IAM policy propagation..."
-          sleep 30
+          echo "Current directory: $(pwd)"
+          ls -R modules/cloudfront
+          cd modules/cloudfront/lambda
+          terraform apply -target=module.cloudfront.local_file.lambda_auth_rendered -auto-approve
+          ls -l  # Check for index.js
+          zip -j ../lambda.zip index.js || echo "ZIP command failed"
+          ls -l ../  # Check for lambda.zip
       - name: Run Terraform
         run: |
           echo "Running apply job - v3 - timestamp: $(date +%s)"
