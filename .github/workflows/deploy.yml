@@ -225,7 +225,7 @@ jobs:
         id: output-url
         run: |
           PROTECTED_URL=$(terraform output -raw protected_url)
-          echo "Protected URL (username: admin, password: mysecretpassword): $PROTECTED_URL"
+          echo "Protected URL: $PROTECTED_URL"
           echo "protected_url=$PROTECTED_URL" >> $GITHUB_OUTPUT
       - name: Check CloudFront Distribution Exists
         id: check-cloudfront

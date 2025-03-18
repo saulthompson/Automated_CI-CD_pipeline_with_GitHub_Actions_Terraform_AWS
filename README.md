@@ -31,15 +31,12 @@ If you don't have root access to the AWS account you are using, simply enter you
 - AWS_ACCESS_KEY_ID
 - AWS_SECRET_ACCESS_KEY
 - S3_BUCKET (choose any value you like)
-- WEBSITE_PASSWORD (choose any value you like)
-- WEBSITE_USERNAME (choose any value you like)
 
-WEBSITE_PASSWORD and WEBSITE_USERNAME can be set to any value - these will be the Basic Auth credentials for your S3/cloudfront hosted website. The value you set for S3_BUCKET will be the name of the S3 bucket that hosts your website.
+ The value you set for S3_BUCKET will be the name of the S3 bucket that hosts your website.
 
 Make any desired changes to the web directory, commit, and push to the remote. This will automatically trigger the GHA workflow, which will deploy all necessary architecture on AWS. 
 
-Find the URL for your website in the AWS Cloudfront console.
-
+Find your cloudfront URL in the GitHub Actions output, under "protected URL output". When you navigate to this URL in a web browser, you will be prompted for credentials. Once you enter credentials, a hash of the credentials is set as the Authorization header value for all future requests to this URL within the same browser session, allowing you to navigate to the URL in different tabs or windows without having to re-enter credentials.
 
 # Maintainability
 
@@ -52,6 +49,8 @@ Nonetheless, developers should be aware of some changes that might need to be im
 2. Care should be taken to remove long-lived aws credentials from github secrets after bootstrapping.
 
 3. It might be necessary to update the template file relative path in modules/cloudfront/main.tf in different environments. I made a local version of lambda.zip for use in local development. In the GHA workflow, the index.js.tlp file is zipped dynamically.
+
+4. currently, website credentials are hardcoded in modules/cloudfront/lambda/index.js.tpl . My intention was to inject credentials dynamically as TF_VARs using Terraform's tpl templating capabilities. This remains the long-term aim, but in the interests of time and testing all the other components, I have left them hardcoded for now.
 
 # Security
 
