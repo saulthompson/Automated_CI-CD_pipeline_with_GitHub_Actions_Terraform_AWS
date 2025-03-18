@@ -68,7 +68,7 @@ resource "aws_cloudfront_distribution" "cdn" {
     }
   }
   enabled             = true
-  default_root_object = "web/index.html"
+  default_root_object = "index.html"
   default_cache_behavior {
     viewer_protocol_policy = "redirect-to-https"
     allowed_methods        = ["GET", "HEAD"]
