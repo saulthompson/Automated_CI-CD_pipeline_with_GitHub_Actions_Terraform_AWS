@@ -6,6 +6,7 @@ exports.handler = async (event) => {
   const request = event.Records[0].cf.request
   const headers = request.headers
   const authString = "Basic " + Buffer.from(USERNAME + ":" + PASSWORD).toString("base64")
+  console.log('auth string: ' + authString)
   
   if (!headers.authorization || headers.authorization[0].value !== authString) {
     return {
