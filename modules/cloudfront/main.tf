@@ -14,7 +14,6 @@ resource "local_file" "lambda_auth_rendered" {
 
 resource "null_resource" "create_lambda_zip" {
   triggers = {
-    # Use the hash of the template and variables to trigger recreation
     source_code_hash = sha256("${file("${path.module}/lambda/index.js.tpl")}${var.website_username}${var.website_password}")
   }
 
@@ -81,7 +80,7 @@ resource "aws_cloudfront_distribution" "cdn" {
     domain_name = var.bucket_regional_domain_name
     origin_id   = "S3-${var.bucket_name}"
     s3_origin_config {
-      origin_access_identity = "origin-access-identity/cloudfront/${var.oai_id}" 
+      origin_access_identity = ""
     }
   }
   enabled             = true
