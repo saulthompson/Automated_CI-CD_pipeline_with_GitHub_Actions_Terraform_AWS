@@ -1,8 +1,18 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
-GH_USERNAME=$(gh api user --jq '.login')
-REPO_NAME=$(git config --get remote.origin.url | sed 's#.*/##; s#.git##')
+GH_USERNAME=$(gh api user --jq '.login') || { echo "Error: Failed to get GitHub username"; exit 1; }
+echo "GH_USERNAME=$GH_USERNAME"
+
+REPO_URL=$(git config --get remote.origin.url) || { echo "Error: Failed to get remote.origin.url"; exit 1; }
+echo "REPO_URL=$REPO_URL"
+
+REPO_NAME=$(echo "$REPO_URL" | sed 's#.*/##; s#.git##' | tr -d '[:space:]\r') || { echo "Error: Failed to parse repo name"; exit 1; }
+echo "REPO_NAME=$REPO_NAME"
+
+[ -z "$REPO_NAME" ] && { echo "Error: REPO_NAME is empty"; exit 1; }
+
 REPO="${GH_USERNAME}/${REPO_NAME}"
+echo "REPO=$REPO""
 IAM_USER="gha-bootstrap-user"
 
 # Create IAM user
