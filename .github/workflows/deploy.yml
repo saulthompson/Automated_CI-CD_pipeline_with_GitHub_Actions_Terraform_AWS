@@ -44,9 +44,13 @@ jobs:
           source scripts/teardown.sh
           BUCKET_NAME="tfs-${{ secrets.AWS_ACCOUNT_ID }}"
           WEBSITE_BUCKET="${{ secrets.S3_BUCKET }}-${{ secrets.AWS_ACCOUNT_ID }}"
+
+          cd modules/bootstrap
           
           if aws s3 ls "s3://$BUCKET_NAME" 2>/dev/null; then
-            echo "State bucket $BUCKET_NAME already exists, skipping bootstrap"
+            echo "State bucket $BUCKET_NAME already exists, cleaning up..."
+            terraform init -no-color -backend-config="bucket=$BUCKET_NAME" -backend-config="key=state/terraform.tfstate" -backend-config="region=$AWS_REGION" || { echo "terraform init failed"; exit 1; }
+            terraform destroy -auto-approve -var="aws_region=$AWS_REGION" -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}" || { echo "terraform destroy failed"; exit 1; }
             echo "ran=false" >> $GITHUB_OUTPUT
             exit 0
           fi
@@ -59,9 +63,6 @@ jobs:
           echo "Removing existing resources..."
         
           empty_and_delete_bucket "$WEBSITE_BUCKET"
-
-          terraform init -no-color || { echo "terraform init failed"; exit 1; }
-          terraform destroy -auto-approve -var="aws_region=$AWS_REGION" -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}" || { echo "terraform destroy failed"; exit 1; }
 
           terraform init -no-color || { echo "terraform init failed"; exit 1; }
           terraform apply -auto-approve -no-color -var="aws_region=$AWS_REGION" -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}" || { echo "terraform apply failed"; exit 1; }
