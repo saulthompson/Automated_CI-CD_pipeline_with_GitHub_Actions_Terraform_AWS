@@ -54,8 +54,7 @@ jobs:
           echo "State bucket $BUCKET_NAME does not exist, running bootstrap..."
           echo "ran=true" >> $GITHUB_OUTPUT
           
-          mkdir -p bootstrap
-          cd bootstrap
+          cd modules/bootstrap
           
           echo "Removing existing resources..."
         
