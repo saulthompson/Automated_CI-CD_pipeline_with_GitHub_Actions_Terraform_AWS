@@ -90,6 +90,7 @@ jobs:
         run: |
           BUCKET_NAME="tfs-${{ secrets.AWS_ACCOUNT_ID }}"
           terraform init -no-color -backend-config="bucket=$BUCKET_NAME" -backend-config="key=state/terraform.tfstate" -backend-config="region=$AWS_REGION"
+        env:
           TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
           TF_VAR_website_username: ${{ secrets.WEBSITE_USERNAME }}
           TF_VAR_website_password: ${{ secrets.WEBSITE_PASSWORD }}
