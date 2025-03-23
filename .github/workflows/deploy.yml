@@ -58,26 +58,9 @@ jobs:
           
           terraform destroy -auto-approve || { echo "terraform destroy failed"; exit 1; }
 
-          cat <<EOF > bootstrap.tf
-          provider "aws" {
-            region = "${{ env.AWS_REGION }}"
-          }
-          data "aws_caller_identity" "current" {}
-          module "tfstate_s3" {
-            source     = "../modules/tfstate_s3"
-            account_id = data.aws_caller_identity.current.account_id
-          }
-          module "github_actions_integration" {
-            source      = "../modules/github_actions_integration"
-            account_id  = data.aws_caller_identity.current.account_id
-            github_repo = "${{ github.repository }}"
-            bucket_arn  = module.tfstate_s3.bucket_arn
-          }
-          EOF
-          
           rm -rf .terraform terraform.tfstate*
           terraform init -no-color || { echo "terraform init failed"; exit 1; }
-          terraform apply -auto-approve -no-color || { echo "terraform apply failed"; exit 1; }
+          terraform apply -auto-approve -no-color AWS_REGION}" -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}" || { echo "terraform apply failed"; exit 1; }
         env:
           TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
 
@@ -106,8 +89,7 @@ jobs:
       - name: Terraform Init
         run: |
           BUCKET_NAME="tfs-${{ secrets.AWS_ACCOUNT_ID }}"
-          terraform init -no-color -backend-config="bucket=$BUCKET_NAME" -backend-config="key=state/terraform.tfstate" -backend-config="region=${{ env.AWS_REGION }}"
-        env:
+          terraform init -no-color -backend-config="bucket=$BUCKET_NAME" -backend-config="key=state/terraform.tfstate" -backend-config="region=$AWS_REGION"
           TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
           TF_VAR_website_username: ${{ secrets.WEBSITE_USERNAME }}
           TF_VAR_website_password: ${{ secrets.WEBSITE_PASSWORD }}
