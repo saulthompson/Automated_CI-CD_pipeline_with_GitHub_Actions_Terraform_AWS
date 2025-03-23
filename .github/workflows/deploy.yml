@@ -61,7 +61,7 @@ jobs:
           empty_and_delete_bucket "$WEBSITE_BUCKET"
 
           terraform init -no-color || { echo "terraform init failed"; exit 1; }
-          terraform destroy -auto-approve -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}" || { echo "terraform destroy failed"; exit 1; }
+          terraform destroy -auto-approve -var="aws_region=$AWS_REGION" -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}" || { echo "terraform destroy failed"; exit 1; }
 
           terraform init -no-color || { echo "terraform init failed"; exit 1; }
           terraform apply -auto-approve -no-color -var="aws_region=$AWS_REGION" -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}" || { echo "terraform apply failed"; exit 1; }
