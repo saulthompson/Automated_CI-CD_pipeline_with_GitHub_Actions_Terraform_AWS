@@ -59,10 +59,10 @@ jobs:
           echo "Removing existing resources..."
         
           empty_and_delete_bucket "$WEBSITE_BUCKET"
-          
+
+          terraform init -no-color || { echo "terraform init failed"; exit 1; }
           terraform destroy -auto-approve || { echo "terraform destroy failed"; exit 1; }
 
-          rm -rf .terraform terraform.tfstate*
           terraform init -no-color || { echo "terraform init failed"; exit 1; }
           terraform apply -auto-approve -no-color -var="aws_region=$AWS_REGION" -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}" || { echo "terraform apply failed"; exit 1; }
           
