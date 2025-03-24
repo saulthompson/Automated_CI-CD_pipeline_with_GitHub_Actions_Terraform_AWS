@@ -46,10 +46,10 @@ jobs:
           if aws s3 ls "s3://$BUCKET_NAME" 2>/dev/null; then
             echo "State bucket $BUCKET_NAME already exists, cleaning up..."
             echo "run=false" >> $GITHUB_OUTPUT
-          fi
-          
-          echo "State bucket $BUCKET_NAME does not exist, running bootstrap..."
-          echo "run=true" >> $GITHUB_OUTPUT
+          else
+            echo "State bucket $BUCKET_NAME does not exist, running bootstrap..."
+            echo "run=true" >> $GITHUB_OUTPUT
+          fi          
       - name: Check if website S3 bucket exists, and if so, tear it down
         id: tear-down-website-s3
         if: steps.check-state-bucket.outputs.run == 'true'
