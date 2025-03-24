@@ -5,6 +5,7 @@ variable "bucket_name" {
 
 variable "bucket_regional_domain_name" { 
   type = string 
+  default     = "${var.bucket_name}.s3.us-east-1.amazonaws.com"
 }
 
 variable "account_id" { 

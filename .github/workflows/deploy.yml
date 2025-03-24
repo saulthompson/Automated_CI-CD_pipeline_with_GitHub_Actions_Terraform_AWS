@@ -179,15 +179,21 @@ jobs:
       - name: Check CloudFront Distribution Exists
         id: check-cloudfront
         run: |
-          DISTRIBUTION_ID=$(aws cloudfront list-distributions --query 'DistributionList.Items[?Origins.Items[0].DomainName==`${{ secrets.S3_BUCKET }}.s3.${{ env.AWS_REGION }}.amazonaws.com`].Id' --output text 2>/dev/null)
+          echo "Waiting for CloudFront distribution to propagate..."
+          sleep 30  # Wait 30 seconds for propagation
+          DISTRIBUTION_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?Origins.Items[0].DomainName=='${{ secrets.S3_BUCKET }}-${{ secrets.AWS_ACCOUNT_ID }}.s3.us-east-1.amazonaws.com'].Id" --output text 2>/dev/null)
           if [ -z "$DISTRIBUTION_ID" ] || [ "$DISTRIBUTION_ID" = "None" ]; then
-            echo "No CloudFront distribution found"
+            echo "No CloudFront distribution found for origin ${{ secrets.S3_BUCKET }}-${{ secrets.AWS_ACCOUNT_ID }}.s3.us-east-1.amazonaws.com"
+            echo "Listing all distributions for debugging:"
+            aws cloudfront list-distributions --query 'DistributionList.Items[*].[Id, Origins.Items[*].DomainName]' --output table
             echo "distribution_exists=false" >> $GITHUB_OUTPUT
           else
             echo "CloudFront distribution found: $DISTRIBUTION_ID"
             echo "CLOUDFRONT_DISTRIBUTION_ID=$DISTRIBUTION_ID" >> $GITHUB_ENV
             echo "distribution_exists=true" >> $GITHUB_OUTPUT
           fi
+        env:
+          AWS_REGION: us-east-1
       - name: Invalidate CloudFront Cache
         if: steps.check-cloudfront.outputs.distribution_exists == 'true'
         run: |

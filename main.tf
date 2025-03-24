@@ -23,13 +23,13 @@ resource "aws_s3_bucket" "tfstate" {
 }
 
 module "cloudfront" {
-  source                     = "./modules/cloudfront"
-  bucket_name                = module.website_s3.bucket_name
+  source                      = "./modules/cloudfront"
+  bucket_name                 = module.website_s3.bucket_name
   bucket_regional_domain_name = module.website_s3.bucket_regional_domain_name
-  account_id                 = var.account_id
-  oai_id                     = module.website_s3.oai_id
-  website_username           = var.website_username
-  website_password           = var.website_password
+  account_id                  = var.account_id
+  oai_id                      = module.website_s3.oai_id
+  website_username            = var.website_username
+  website_password            = var.website_password
 }
 
 module "website_s3" {
