@@ -103,12 +103,14 @@ jobs:
           TF_VAR_website_password: ${{ secrets.WEBSITE_PASSWORD }}
       - name: Import Existing Lambda Function
         run: |
-          terraform import -no-color module.cloudfront.aws_lambda_function.basic_auth arn:aws:lambda:us-east-1:${{ secrets.AWS_ACCOUNT_ID }}:function:basic-auth-${{ secrets.AWS_ACCOUNT_ID }} || echo "Function already imported or doesn’t exist"
+          terraform import -no-color -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}" module.cloudfront.aws_lambda_function.basic_auth arn:aws:lambda:us-east-1:${{ secrets.AWS_ACCOUNT_ID }}:function:basic-auth-${{ secrets.AWS_ACCOUNT_ID }} || echo "Function already imported or doesn’t exist"
         env:
-          TF_VAR_github_repo: ${{ github.repository }}
           TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
-          TF_VAR_website_username: ${{ secrets.WEBSITE_USERNAME }}
-          TF_VAR_website_password: ${{ secrets.WEBSITE_PASSWORD }}
+      - name: Import Existing IAM Role
+        run: |
+          terraform import -no-color -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}" module.cloudfront.aws_iam_role.lambda_exec arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/lambda-exec-role-${{ secrets.AWS_ACCOUNT_ID }} || echo "Role already imported or doesn’t exist"
+        env:
+          TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
       - name: Create Lambda ZIP
         run: |
           echo "Current directory: $(pwd)"
@@ -142,9 +144,18 @@ jobs:
       - name: Run Terraform
         run: |
           echo "Running apply job - v5 - timestamp: $(date +%s)"
-          terraform apply -auto-approve -no-color -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}"
+          terraform apply -auto-approve -no-color -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}" || {
+            if grep -q "replicated function" terraform.log; then
+              echo "Ignoring Lambda@Edge deletion error, continuing workflow..."
+              exit 0
+            else
+              echo "Terraform failed with an unexpected error"
+              exit 1
+            fi
+          }
         env:
           TF_LOG: DEBUG
+          TF_LOG_PATH: terraform.log
       - name: Sync files to S3
         run: |
           aws s3 sync ./web s3://${{ secrets.S3_BUCKET }}-${{ secrets.AWS_ACCOUNT_ID }} --delete
