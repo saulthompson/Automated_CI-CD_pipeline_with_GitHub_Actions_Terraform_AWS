@@ -147,6 +147,11 @@ jobs:
         env:
           TF_VAR_website_username: ${{ secrets.WEBSITE_USERNAME }}
           TF_VAR_website_password: ${{ secrets.WEBSITE_PASSWORD }}
+      - name: Fix Lambda Permission State
+        run: |
+          terraform import -no-color -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}" module.cloudfront.aws_lambda_permission.allow_cloudfront basic-auth-${{ secrets.AWS_ACCOUNT_ID }}:24/AllowExecutionFromCloudFront || echo "Permission already imported or doesn’t exist"
+        env:
+          TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
       - name: Run Terraform
         run: |
           echo "Running apply job - v5 - timestamp: $(date +%s)"
