@@ -46,13 +46,13 @@ jobs:
           if aws s3 ls "s3://$BUCKET_NAME" 2>/dev/null; then
             echo "State bucket $BUCKET_NAME already exists, cleaning up..."
             echo "run=false" >> $GITHUB_OUTPUT
-            exit 0
           fi
           
           echo "State bucket $BUCKET_NAME does not exist, running bootstrap..."
           echo "run=true" >> $GITHUB_OUTPUT
       - name: Check if website S3 bucket exists, and if so, tear it down
         id: tear-down-website-s3
+        if: steps.check-state-bucket.outputs.run == 'true'
         run: |
           source scripts/teardown.sh
           WEBSITE_BUCKET="${{ secrets.S3_BUCKET }}-${{ secrets.AWS_ACCOUNT_ID }}"       
@@ -62,6 +62,7 @@ jobs:
           empty_and_delete_bucket "$WEBSITE_BUCKET"
       - name: Deploy S3 terraform backend and set up OIDC
         id: deploy
+        if: steps.check-state-bucket.outputs.run == 'true'
         run: |
           cd modules/bootstrap          
 
