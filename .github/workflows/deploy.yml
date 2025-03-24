@@ -41,6 +41,8 @@ jobs:
       - name: Check if Terraform State Bucket exists
         id: check-state-bucket
         run: |
+          BUCKET_NAME="tfs-${{ secrets.AWS_ACCOUNT_ID }}"
+
           if aws s3 ls "s3://$BUCKET_NAME" 2>/dev/null; then
             echo "State bucket $BUCKET_NAME already exists, cleaning up..."
             echo "run=false" >> $GITHUB_OUTPUT
@@ -53,7 +55,6 @@ jobs:
         id: tear-down-website-s3
         run: |
           source scripts/teardown.sh
-          BUCKET_NAME="tfs-${{ secrets.AWS_ACCOUNT_ID }}"
           WEBSITE_BUCKET="${{ secrets.S3_BUCKET }}-${{ secrets.AWS_ACCOUNT_ID }}"       
           
           cd modules/bootstrap          
