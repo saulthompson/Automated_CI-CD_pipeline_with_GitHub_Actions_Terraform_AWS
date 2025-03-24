@@ -56,14 +56,14 @@ jobs:
           BUCKET_NAME="tfs-${{ secrets.AWS_ACCOUNT_ID }}"
           WEBSITE_BUCKET="${{ secrets.S3_BUCKET }}-${{ secrets.AWS_ACCOUNT_ID }}"       
           
-          cd modules/bootstrap
-          
+          cd modules/bootstrap          
           echo "Removing existing resources..."
-        
           empty_and_delete_bucket "$WEBSITE_BUCKET"
       - name: Deploy S3 terraform backend and set up OIDC
         id: deploy
         run: |
+          cd modules/bootstrap          
+
           terraform init -no-color || { echo "terraform init failed"; exit 1; }
           terraform apply -auto-approve -no-color -var="aws_region=$AWS_REGION" -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}" || { echo "terraform apply failed"; exit 1; }          
         env:
