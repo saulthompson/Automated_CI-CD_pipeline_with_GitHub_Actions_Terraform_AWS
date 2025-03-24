@@ -103,8 +103,9 @@ jobs:
           TF_VAR_website_password: ${{ secrets.WEBSITE_PASSWORD }}
       - name: Import Existing Lambda Function
         run: |
-          terraform import -no-color module.cloudfront.aws_lambda_function.basic_auth arn:aws:lambda:us-east-1:${{ secrets.AWS_ACCOUNT_ID }}:function:basic-auth-${{ secrets.AWS_ACCOUNT_ID }} -var="github_repo=${{ github.repository }} || echo "Function already imported or doesn’t exist"
+          terraform import -no-color module.cloudfront.aws_lambda_function.basic_auth arn:aws:lambda:us-east-1:${{ secrets.AWS_ACCOUNT_ID }}:function:basic-auth-${{ secrets.AWS_ACCOUNT_ID }} || echo "Function already imported or doesn’t exist"
         env:
+          TF_VAR_github_repo: ${{ github.repository }}
           TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
       - name: Create Lambda ZIP
         run: |
