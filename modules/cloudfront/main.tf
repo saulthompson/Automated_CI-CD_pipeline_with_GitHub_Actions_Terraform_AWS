@@ -18,6 +18,13 @@ resource "aws_lambda_function" "basic_auth" {
     basic_password = var.website_password
   }))
   publish          = true
+  
+  lifecycle {
+    ignore_changes = [
+      filename,
+      source_code_hash
+    ]
+  }
 }
 
 resource "aws_lambda_permission" "allow_cloudfront" {
