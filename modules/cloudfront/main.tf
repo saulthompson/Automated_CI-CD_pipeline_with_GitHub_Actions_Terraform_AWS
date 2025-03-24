@@ -18,11 +18,13 @@ resource "aws_lambda_function" "basic_auth" {
     basic_password = var.website_password
   }))
   publish          = true
-  
+
   lifecycle {
     ignore_changes = [
       filename,
-      source_code_hash
+      source_code_hash,
+      architectures,
+      publish
     ]
   }
 }

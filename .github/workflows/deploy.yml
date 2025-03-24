@@ -101,9 +101,10 @@ jobs:
           TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
           TF_VAR_website_username: ${{ secrets.WEBSITE_USERNAME }}
           TF_VAR_website_password: ${{ secrets.WEBSITE_PASSWORD }}
-      - name: Import Existing Lambda Function
+      - name: Fix Lambda Function State
         run: |
-          terraform import -no-color -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}" module.cloudfront.aws_lambda_function.basic_auth arn:aws:lambda:us-east-1:${{ secrets.AWS_ACCOUNT_ID }}:function:basic-auth-${{ secrets.AWS_ACCOUNT_ID }} || echo "Function already imported or doesn’t exist"
+          terraform state rm module.cloudfront.aws_lambda_function.basic_auth || echo "Resource not in state"
+          terraform import -no-color -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}" module.cloudfront.aws_lambda_function.basic_auth basic-auth-${{ secrets.AWS_ACCOUNT_ID }} || echo "Import failed or already correct"
         env:
           TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
       - name: Import Existing IAM Role
