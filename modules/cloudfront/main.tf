@@ -1,6 +1,6 @@
 # Lambda@Edge for Basic Auth
 resource "local_file" "lambda_auth_rendered" {
-  content = templatefile("${path.module}/lambda/index.js.tpl", {
+  content = templatefile("${path.module}/lambda/index.js.tftpl", {
     basic_user     = var.website_username
     basic_password = var.website_password
   })
