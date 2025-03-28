@@ -1,0 +1,55 @@
+name: Post-Deployment Tasks
+
+on:
+  workflow_call:
+    inputs:
+      aws_region:
+        required: true
+        type: string
+    secrets:
+      AWS_ACCOUNT_ID:
+        required: true
+      S3_BUCKET:
+        required: true
+    outputs:
+      protected_url:
+        description: "The protected CloudFront URL"
+        value: ${{ jobs.post-deploy.outputs.protected_url }}
+
+jobs:
+  post-deploy:
+    runs-on: ubuntu-latest
+    outputs:
+      protected_url: ${{ steps.output-url.outputs.protected_url }}
+    steps:
+      - name: Configure AWS Credentials with OIDC
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
+          aws-region: ${{ inputs.aws_region }}
+      - name: Output Protected URL
+        id: output-url
+        run: |
+          PROTECTED_URL=$(terraform output -raw protected_url)
+          echo "Protected URL: $PROTECTED_URL"
+          echo "protected_url=$PROTECTED_URL" >> $GITHUB_OUTPUT
+      - name: Check CloudFront Distribution Exists
+        id: check-cloudfront
+        run: |
+          echo "Waiting for CloudFront distribution to propagate..."
+          sleep 30
+          DISTRIBUTION_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?Origins.Items[0].DomainName=='${{ secrets.S3_BUCKET }}-${{ secrets.AWS_ACCOUNT_ID }}.s3.us-east-1.amazonaws.com'].Id | [0]" --output text 2>/dev/null)
+          if [ -z "$DISTRIBUTION_ID" ] || [ "$DISTRIBUTION_ID" = "None" ]; then
+            echo "No CloudFront distribution found for origin ${{ secrets.S3_BUCKET }}-${{ secrets.AWS_ACCOUNT_ID }}.s3.us-east-1.amazonaws.com"
+            echo "Listing all distributions for debugging:"
+            aws cloudfront list-distributions --query 'DistributionList.Items[*].[Id, Origins.Items[*].DomainName]' --output table
+            echo "distribution_exists=false" >> $GITHUB_OUTPUT
+          else
+            echo "CloudFront distribution found: $DISTRIBUTION_ID"
+            echo "CLOUDFRONT_DISTRIBUTION_ID=$DISTRIBUTION_ID" >> $GITHUB_ENV
+            echo "distribution_exists=true" >> $GITHUB_OUTPUT
+          fi
+      - name: Invalidate CloudFront Cache
+        if: steps.check-cloudfront.outputs.distribution_exists == 'true'
+        run: |
+          aws cloudfront create-invalidation --distribution-id ${{ env.CLOUDFRONT_DISTRIBUTION_ID }} --paths "/*"

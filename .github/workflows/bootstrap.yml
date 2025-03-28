@@ -1,0 +1,61 @@
+name: Bootstrap Terraform State and IAM
+
+on:
+  workflow_call:
+    inputs:
+      aws_region:
+        required: true
+        type: string
+      github_repo:
+        required: true
+        type: string
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      AWS_SESSION_TOKEN:
+        required: true
+      AWS_ACCOUNT_ID:
+        required: true
+      S3_BUCKET:
+        required: true
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS Credentials (Static)
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ inputs.aws_region }}
+      - name: Check if Terraform State Bucket exists
+        id: check-state-bucket
+        run: |
+          BUCKET_NAME="tfs-${{ secrets.AWS_ACCOUNT_ID }}"
+          if aws s3 ls "s3://$BUCKET_NAME" 2>/dev/null; then
+            echo "State bucket $BUCKET_NAME already exists, cleaning up..."
+            echo "run=false" >> $GITHUB_OUTPUT
+          else
+            echo "State bucket $BUCKET_NAME does not exist, running bootstrap..."
+            echo "run=true" >> $GITHUB_OUTPUT
+          fi
+      - name: Check if website S3 bucket exists, and if so, tear it down
+        if: steps.check-state-bucket.outputs.run == 'true'
+        run: |
+          source scripts/teardown.sh
+          WEBSITE_BUCKET="${{ secrets.S3_BUCKET }}-${{ secrets.AWS_ACCOUNT_ID }}"
+          cd modules/bootstrap
+          echo "Removing existing resources..."
+          empty_and_delete_bucket "$WEBSITE_BUCKET"
+      - name: Deploy S3 terraform backend and set up OIDC
+        if: steps.check-state-bucket.outputs.run == 'true'
+        run: |
+          cd modules/bootstrap
+          terraform init -no-color || { echo "terraform init failed"; exit 1; }
+          terraform apply -auto-approve -no-color -var="aws_region=${{ inputs.aws_region }}" -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ inputs.github_repo }}" || { echo "terraform apply failed"; exit 1; }
+        env:
+          TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}

@@ -1,0 +1,52 @@
+name: Prepare Terraform Resources
+
+on:
+  workflow_call:
+    inputs:
+      aws_region:
+        required: true
+        type: string
+      github_repo:
+        required: true
+        type: string
+    secrets:
+      AWS_ACCOUNT_ID:
+        required: true
+      WEBSITE_USERNAME:
+        required: true
+      WEBSITE_PASSWORD:
+        required: true
+
+jobs:
+  terraform-prep:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS Credentials with OIDC
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
+          aws-region: ${{ inputs.aws_region }}
+      - name: Terraform Init
+        run: |
+          BUCKET_NAME="tfs-${{ secrets.AWS_ACCOUNT_ID }}"
+          terraform init -no-color -backend-config="bucket=$BUCKET_NAME" -backend-config="key=state/terraform.tfstate" -backend-config="region=${{ inputs.aws_region }}"
+        env:
+          TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
+          TF_VAR_website_username: ${{ secrets.WEBSITE_USERNAME }}
+          TF_VAR_website_password: ${{ secrets.WEBSITE_PASSWORD }}
+      - name: Fix Lambda Function State
+        run: |
+          terraform state rm module.cloudfront.aws_lambda_function.basic_auth || echo "Resource not in state"
+          terraform import -no-color -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ inputs.github_repo }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}" module.cloudfront.aws_lambda_function.basic_auth basic-auth-${{ secrets.AWS_ACCOUNT_ID }} || echo "Import failed or already correct"
+        env:
+          TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
+      - name: Fix IAM Role State
+        run: |
+          terraform import -no-color -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ inputs.github_repo }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}" module.cloudfront.aws_iam_role.lambda_exec arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/lambda-exec-role-${{ secrets.AWS_ACCOUNT_ID }} || echo "Role already imported or doesn’t exist"
+        env:
+          TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
+      - name: Fix Lambda Permission State
+        run: |
+          terraform import -no-color -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ inputs.github_repo }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}" module.cloudfront.aws_lambda_permission.allow_cloudfront basic-auth-${{ secrets.AWS_ACCOUNT_ID }}:24/AllowExecutionFromCloudFront || echo "Permission already imported or doesn’t exist"
+        env:
+          TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}

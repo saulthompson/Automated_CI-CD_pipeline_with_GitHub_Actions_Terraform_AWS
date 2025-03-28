@@ -1,0 +1,33 @@
+name: Setup Environment
+
+on:
+  workflow_call:
+    outputs:
+      commit_sha:
+        description: "The commit SHA of the current run"
+        value: ${{ jobs.setup.outputs.commit_sha }}
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      commit_sha: ${{ steps.log-sha.outputs.commit_sha }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v3
+      - name: Install Node.js for Lambda
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zip
+      - name: Log Commit SHA
+        id: log-sha
+        run: |
+          echo "Running on commit: ${GITHUB_SHA}"
+          git log -1
+          echo "commit_sha=${GITHUB_SHA}" >> $GITHUB_OUTPUT

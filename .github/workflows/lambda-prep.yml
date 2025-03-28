@@ -1,0 +1,50 @@
+name: Prepare Lambda Function
+
+on:
+  workflow_call:
+    inputs:
+      github_repo:
+        required: true
+        type: string
+    secrets:
+      AWS_ACCOUNT_ID:
+        required: true
+      WEBSITE_USERNAME:
+        required: true
+      WEBSITE_PASSWORD:
+        required: true
+
+jobs:
+  lambda-prep:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Lambda ZIP
+        run: |
+          echo "Current directory: $(pwd)"
+          ls -R .
+          echo "Environment variables:"
+          echo "TF_VAR_website_username=${TF_VAR_website_username}"
+          echo "TF_VAR_website_password=${TF_VAR_website_password}"
+          echo "Cleaning up stray lambda.zip files..."
+          find . -name "lambda.zip" -exec rm -f {} \; || echo "No stray lambda.zip files found"
+          echo "Creating index.js from template..."
+          terraform apply -target=module.cloudfront.local_file.lambda_auth_rendered -auto-approve -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ inputs.github_repo }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}"
+          echo "Contents of index.js:"
+          cat modules/cloudfront/lambda/index.js || echo "index.js not found"
+          ls -l modules/cloudfront/lambda || echo "No index.js found"
+          echo "Creating lambda.zip..."
+          cd modules/cloudfront/lambda
+          zip -j ../lambda.zip index.js || { echo "ZIP creation failed"; exit 1; }
+          cd ../../..
+          ls -l modules/cloudfront || echo "No lambda.zip found"
+          if [ -f "modules/cloudfront/lambda.zip" ]; then
+            echo "lambda.zip created successfully at modules/cloudfront/lambda.zip!"
+            echo "Verifying lambda.zip contents..."
+            unzip -l modules/cloudfront/lambda.zip
+          else
+            echo "Error: lambda.zip missing"
+            exit 1
+          fi
+        env:
+          TF_VAR_website_username: ${{ secrets.WEBSITE_USERNAME }}
+          TF_VAR_website_password: ${{ secrets.WEBSITE_PASSWORD }}

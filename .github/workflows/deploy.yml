@@ -1,161 +1,42 @@
-name: Deploy to S3
+name: Deploy to S3 and CloudFront
 
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
-      destroy:
-        description: 'Destroy all resources'
-        required: false
-        default: 'false'
-  push:
-    branches:
-      - main
-
-env:
-  AWS_REGION: "us-east-1"
-
-permissions:
-  id-token: write
-  contents: read
+      aws_region:
+        required: true
+        type: string
+      github_repo:
+        required: true
+        type: string
+    secrets:
+      AWS_ACCOUNT_ID:
+        required: true
+      WEBSITE_USERNAME:
+        required: true
+      WEBSITE_PASSWORD:
+        required: true
+      S3_BUCKET:
+        required: true
 
 jobs:
-  bootstrap:
-    name: Bootstrap Terraform State and IAM
+  deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-      - name: Configure AWS Credentials (Static)
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-          aws-region: ${{ env.AWS_REGION }}
-      - name: Install Terraform
-        uses: hashicorp/setup-terraform@v3
-      - name: Log Commit SHA
-        run: |
-          echo "Running on commit: ${GITHUB_SHA}"
-          git log -1
-      - name: Check if Terraform State Bucket exists
-        id: check-state-bucket
-        run: |
-          BUCKET_NAME="tfs-${{ secrets.AWS_ACCOUNT_ID }}"
-
-          if aws s3 ls "s3://$BUCKET_NAME" 2>/dev/null; then
-            echo "State bucket $BUCKET_NAME already exists, cleaning up..."
-            echo "run=false" >> $GITHUB_OUTPUT
-          else
-            echo "State bucket $BUCKET_NAME does not exist, running bootstrap..."
-            echo "run=true" >> $GITHUB_OUTPUT
-          fi          
-      - name: Check if website S3 bucket exists, and if so, tear it down
-        id: tear-down-website-s3
-        if: steps.check-state-bucket.outputs.run == 'true'
-        run: |
-          source scripts/teardown.sh
-          WEBSITE_BUCKET="${{ secrets.S3_BUCKET }}-${{ secrets.AWS_ACCOUNT_ID }}"       
-          
-          cd modules/bootstrap          
-          echo "Removing existing resources..."
-          empty_and_delete_bucket "$WEBSITE_BUCKET"
-      - name: Deploy S3 terraform backend and set up OIDC
-        id: deploy
-        if: steps.check-state-bucket.outputs.run == 'true'
-        run: |
-          cd modules/bootstrap          
-
-          terraform init -no-color || { echo "terraform init failed"; exit 1; }
-          terraform apply -auto-approve -no-color -var="aws_region=$AWS_REGION" -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}" || { echo "terraform apply failed"; exit 1; }          
-        env:
-          TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
-
-  apply:
-    name: Terraform Apply and Deploy
-    needs: [bootstrap]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
       - name: Configure AWS Credentials with OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
-          aws-region: ${{ env.AWS_REGION }}
-      - name: Install Terraform
-        uses: hashicorp/setup-terraform@v3
-      - name: Install Node.js for Lambda
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y zip
-      - name: Terraform Init
-        run: |
-          BUCKET_NAME="tfs-${{ secrets.AWS_ACCOUNT_ID }}"
-          terraform init -no-color -backend-config="bucket=$BUCKET_NAME" -backend-config="key=state/terraform.tfstate" -backend-config="region=$AWS_REGION"
-        env:
-          TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
-          TF_VAR_website_username: ${{ secrets.WEBSITE_USERNAME }}
-          TF_VAR_website_password: ${{ secrets.WEBSITE_PASSWORD }}
-      - name: Fix Lambda Function State
-        run: |
-          terraform state rm module.cloudfront.aws_lambda_function.basic_auth || echo "Resource not in state"
-          terraform import -no-color -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}" module.cloudfront.aws_lambda_function.basic_auth basic-auth-${{ secrets.AWS_ACCOUNT_ID }} || echo "Import failed or already correct"
-        env:
-          TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
-      - name: Fix IAM Role State
-        run: |
-          terraform import -no-color -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}" module.cloudfront.aws_iam_role.lambda_exec arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/lambda-exec-role-${{ secrets.AWS_ACCOUNT_ID }} || echo "Role already imported or doesn’t exist"
-        env:
-          TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
+          aws-region: ${{ inputs.aws_region }}
       - name: Update Lambda Role First
         run: |
-          terraform apply -auto-approve -no-color -target=module.cloudfront.aws_iam_role.lambda_exec -target=module.cloudfront.aws_lambda_function.basic_auth -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}"
-        env:
-          TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
-      - name: Create Lambda ZIP
-        run: |
-          echo "Current directory: $(pwd)"
-          ls -R .
-          echo "Environment variables:"
-          echo "TF_VAR_website_username=${TF_VAR_website_username}"
-          echo "TF_VAR_website_password=${TF_VAR_website_password}"
-          echo "Cleaning up stray lambda.zip files..."
-          find . -name "lambda.zip" -exec rm -f {} \; || echo "No stray lambda.zip files found"
-          echo "Creating index.js from template..."
-          terraform apply -target=module.cloudfront.local_file.lambda_auth_rendered -auto-approve -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}"
-          echo "Contents of index.js:"
-          cat modules/cloudfront/lambda/index.js || echo "index.js not found"
-          ls -l modules/cloudfront/lambda || echo "No index.js found"
-          echo "Creating lambda.zip..."
-          cd modules/cloudfront/lambda
-          zip -j ../lambda.zip index.js || { echo "ZIP creation failed"; exit 1; }
-          cd ../../..
-          ls -l modules/cloudfront || echo "No lambda.zip found"
-          if [ -f "modules/cloudfront/lambda.zip" ]; then
-            echo "lambda.zip created successfully at modules/cloudfront/lambda.zip!"
-            echo "Verifying lambda.zip contents..."
-            unzip -l modules/cloudfront/lambda.zip
-          else
-            echo "Error: lambda.zip missing"
-            exit 1
-          fi
-        env:
-          TF_VAR_website_username: ${{ secrets.WEBSITE_USERNAME }}
-          TF_VAR_website_password: ${{ secrets.WEBSITE_PASSWORD }}
-      - name: Fix Lambda Permission State
-        run: |
-          terraform import -no-color -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}" module.cloudfront.aws_lambda_permission.allow_cloudfront basic-auth-${{ secrets.AWS_ACCOUNT_ID }}:24/AllowExecutionFromCloudFront || echo "Permission already imported or doesn’t exist"
+          terraform apply -auto-approve -no-color -target=module.cloudfront.aws_iam_role.lambda_exec -target=module.cloudfront.aws_lambda_function.basic_auth -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ inputs.github_repo }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}"
         env:
           TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
       - name: Run Terraform
         run: |
           echo "Running apply job - v5 - timestamp: $(date +%s)"
-          terraform apply -auto-approve -no-color -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ github.repository }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}" || {
+          terraform apply -auto-approve -no-color -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ inputs.github_repo }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}" || {
             if grep -q "replicated function" terraform.log; then
               echo "Ignoring Lambda@Edge deletion error, continuing workflow..."
               exit 0
@@ -170,31 +51,3 @@ jobs:
       - name: Sync files to S3
         run: |
           aws s3 sync ./web s3://${{ secrets.S3_BUCKET }}-${{ secrets.AWS_ACCOUNT_ID }} --delete
-      - name: Output Protected URL
-        id: output-url
-        run: |
-          PROTECTED_URL=$(terraform output -raw protected_url)
-          echo "Protected URL: $PROTECTED_URL"
-          echo "protected_url=$PROTECTED_URL" >> $GITHUB_OUTPUT
-      - name: Check CloudFront Distribution Exists
-        id: check-cloudfront
-        run: |
-          echo "Waiting for CloudFront distribution to propagate..."
-          sleep 30  # Wait 30 seconds for propagation
-          DISTRIBUTION_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?Origins.Items[0].DomainName=='${{ secrets.S3_BUCKET }}-${{ secrets.AWS_ACCOUNT_ID }}.s3.us-east-1.amazonaws.com'].Id | [0]" --output text 2>/dev/null)
-          if [ -z "$DISTRIBUTION_ID" ] || [ "$DISTRIBUTION_ID" = "None" ]; then
-            echo "No CloudFront distribution found for origin ${{ secrets.S3_BUCKET }}-${{ secrets.AWS_ACCOUNT_ID }}.s3.us-east-1.amazonaws.com"
-            echo "Listing all distributions for debugging:"
-            aws cloudfront list-distributions --query 'DistributionList.Items[*].[Id, Origins.Items[*].DomainName]' --output table
-            echo "distribution_exists=false" >> $GITHUB_OUTPUT
-          else
-            echo "CloudFront distribution found: $DISTRIBUTION_ID"
-            echo "CLOUDFRONT_DISTRIBUTION_ID=$DISTRIBUTION_ID" >> $GITHUB_ENV
-            echo "distribution_exists=true" >> $GITHUB_OUTPUT
-          fi
-        env:
-          AWS_REGION: us-east-1
-      - name: Invalidate CloudFront Cache
-        if: steps.check-cloudfront.outputs.distribution_exists == 'true'
-        run: |
-          aws cloudfront create-invalidation --distribution-id ${{ env.CLOUDFRONT_DISTRIBUTION_ID }} --paths "/*"

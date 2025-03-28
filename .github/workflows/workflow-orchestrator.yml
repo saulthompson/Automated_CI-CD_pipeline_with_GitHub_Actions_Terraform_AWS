@@ -1,0 +1,78 @@
+name: Deploy to S3
+
+on:
+  workflow_dispatch:
+    inputs:
+      destroy:
+        description: 'Destroy all resources'
+        required: false
+        default: 'false'
+  push:
+    branches:
+      - main
+
+env:
+  AWS_REGION: "us-east-1"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  setup:
+    uses: ./.github/workflows/setup.yml
+
+  bootstrap:
+    needs: setup
+    uses: ./.github/workflows/bootstrap.yml
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      S3_BUCKET: ${{ secrets.S3_BUCKET }}
+    with:
+      aws_region: ${{ env.AWS_REGION }}
+      github_repo: ${{ github.repository }}
+
+  terraform-prep:
+    needs: [setup, bootstrap]
+    uses: ./.github/workflows/terraform-prep.yml
+    secrets:
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      WEBSITE_USERNAME: ${{ secrets.WEBSITE_USERNAME }}
+      WEBSITE_PASSWORD: ${{ secrets.WEBSITE_PASSWORD }}
+    with:
+      aws_region: ${{ env.AWS_REGION }}
+      github_repo: ${{ github.repository }}
+
+  lambda-prep:
+    needs: [setup, terraform-prep]
+    uses: ./.github/workflows/lambda-prep.yml
+    secrets:
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      WEBSITE_USERNAME: ${{ secrets.WEBSITE_USERNAME }}
+      WEBSITE_PASSWORD: ${{ secrets.WEBSITE_PASSWORD }}
+    with:
+      github_repo: ${{ github.repository }}
+
+  deploy:
+    needs: [setup, terraform-prep, lambda-prep]
+    uses: ./.github/workflows/deploy.yml
+    secrets:
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      WEBSITE_USERNAME: ${{ secrets.WEBSITE_USERNAME }}
+      WEBSITE_PASSWORD: ${{ secrets.WEBSITE_PASSWORD }}
+      S3_BUCKET: ${{ secrets.S3_BUCKET }}
+    with:
+      aws_region: ${{ env.AWS_REGION }}
+      github_repo: ${{ github.repository }}
+
+  post-deploy:
+    needs: [setup, deploy]
+    uses: ./.github/workflows/post-deploy.yml
+    secrets:
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      S3_BUCKET: ${{ secrets.S3_BUCKET }}
+    with:
+      aws_region: ${{ env.AWS_REGION }}
