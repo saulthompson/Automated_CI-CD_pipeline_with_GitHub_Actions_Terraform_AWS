@@ -56,10 +56,10 @@ jobs:
     with:
       aws_region: ${{ needs.setup.outputs.aws_region }}
       github_repo: ${{ github.repository }}
-      run_bootstrap: ${{ needs.check-bootstrap.outputs.run_bootstrap == 'true' }}  # Convert to boolean
+      run_bootstrap: ${{ needs.check-bootstrap.outputs.run_bootstrap == 'true' }}
 
   terraform-prep:
-    needs: [setup, bootstrap]
+    needs: [setup]  # Removed bootstrap dependency
     uses: ./.github/workflows/terraform-prep.yml
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
@@ -70,7 +70,7 @@ jobs:
       github_repo: ${{ github.repository }}
 
   lambda-prep:
-    needs: [setup, terraform-prep]
+    needs: [setup, terraform-prep]  # Adjusted dependency
     uses: ./.github/workflows/lambda-prep.yml
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
@@ -81,7 +81,7 @@ jobs:
       github_repo: ${{ github.repository }}
 
   deploy:
-    needs: [setup, terraform-prep, lambda-prep]
+    needs: [setup, terraform-prep, lambda-prep]  # Adjusted dependency
     uses: ./.github/workflows/deploy.yml
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
@@ -93,7 +93,7 @@ jobs:
       github_repo: ${{ github.repository }}
 
   post-deploy:
-    needs: [setup, deploy]
+    needs: [setup, deploy]  # Adjusted dependency
     uses: ./.github/workflows/post-deploy.yml
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
