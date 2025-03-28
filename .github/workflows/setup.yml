@@ -17,18 +17,8 @@ jobs:
       commit_sha: ${{ steps.log-sha.outputs.commit_sha }}
       aws_region: ${{ steps.set-region.outputs.aws_region }}
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-      - name: Install Terraform
-        uses: hashicorp/setup-terraform@v3
-      - name: Install Node.js for Lambda
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y zip
+      - name: Setup Tools
+        uses: ./.github/actions/setup-tools
       - name: Log Commit SHA
         id: log-sha
         run: |
@@ -41,7 +31,3 @@ jobs:
           REGION="us-east-1"
           echo "Setting aws_region to: $REGION"
           echo "aws_region=$REGION" >> $GITHUB_OUTPUT
-      - name: Debug Outputs
-        run: |
-          echo "commit_sha output: ${{ steps.log-sha.outputs.commit_sha }}"
-          echo "aws_region output: ${{ steps.set-region.outputs.aws_region }}"

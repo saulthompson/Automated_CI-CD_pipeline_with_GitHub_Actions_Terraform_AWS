@@ -22,6 +22,8 @@ jobs:
     outputs:
       protected_url: ${{ steps.output-url.outputs.protected_url }}
     steps:
+      - name: Setup Tools
+        uses: ./.github/composite-actions/setup-tools
       - name: Configure AWS Credentials with OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:

@@ -23,6 +23,8 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: Setup Tools
+        uses: ./.github/composite-actions/setup-tools
       - name: Configure AWS Credentials with OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:

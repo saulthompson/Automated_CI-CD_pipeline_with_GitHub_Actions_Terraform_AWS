@@ -18,6 +18,8 @@ jobs:
   lambda-prep:
     runs-on: ubuntu-latest
     steps:
+      - name: Setup Tools
+        uses: ./.github/composite-actions/setup-tools
       - name: Create Lambda ZIP
         run: |
           echo "Current directory: $(pwd)"
