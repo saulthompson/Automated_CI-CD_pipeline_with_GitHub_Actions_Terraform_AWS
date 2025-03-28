@@ -32,6 +32,14 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
           aws-region: ${{ inputs.aws_region }}
+      - name: Terraform Init
+        run: |
+          BUCKET_NAME="tfs-${{ secrets.AWS_ACCOUNT_ID }}"
+          terraform init -no-color -backend-config="bucket=$BUCKET_NAME" -backend-config="key=state/terraform.tfstate" -backend-config="region=${{ inputs.aws_region }}"
+        env:
+          TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
+          TF_VAR_website_username: ${{ secrets.WEBSITE_USERNAME }}
+          TF_VAR_website_password: ${{ secrets.WEBSITE_PASSWORD }}
       - name: Update Lambda Role First
         run: |
           terraform apply -auto-approve -no-color -target=module.cloudfront.aws_iam_role.lambda_exec -target=module.cloudfront.aws_lambda_function.basic_auth -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ inputs.github_repo }}" -var="website_username=${{ secrets.WEBSITE_USERNAME }}" -var="website_password=${{ secrets.WEBSITE_PASSWORD }}"
