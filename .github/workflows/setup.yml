@@ -12,6 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       commit_sha: ${{ steps.log-sha.outputs.commit_sha }}
+      aws_region: ${{ steps.set-region.outputs.aws_region }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -31,3 +32,7 @@ jobs:
           echo "Running on commit: ${GITHUB_SHA}"
           git log -1
           echo "commit_sha=${GITHUB_SHA}" >> $GITHUB_OUTPUT
+      - name: Set AWS Region
+        id: set-region
+        run: |
+          echo "aws_region=us-east-1" >> $GITHUB_OUTPUT
