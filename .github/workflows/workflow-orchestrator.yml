@@ -56,7 +56,7 @@ jobs:
     with:
       aws_region: ${{ needs.setup.outputs.aws_region }}
       github_repo: ${{ github.repository }}
-      run_bootstrap: ${{ needs.check-bootstrap.outputs.run_bootstrap }}
+      run_bootstrap: ${{ needs.check-bootstrap.outputs.run_bootstrap == 'true' }}  # Convert to boolean
 
   terraform-prep:
     needs: [setup, bootstrap]

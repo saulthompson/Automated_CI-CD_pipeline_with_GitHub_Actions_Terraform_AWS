@@ -9,7 +9,7 @@ on:
       github_repo:
         required: true
         type: string
-      run_bootstrap:  # New input to control execution
+      run_bootstrap: 
         required: true
         type: boolean
     secrets:
