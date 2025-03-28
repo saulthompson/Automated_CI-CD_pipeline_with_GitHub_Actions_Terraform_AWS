@@ -39,7 +39,6 @@ jobs:
           restore-keys: |
             terraform-${{ runner.os }}-
       - name: Terraform Init
-        if: steps.cache-terraform.outputs.cache-hit != 'true'
         run: |
           BUCKET_NAME="tfs-${{ secrets.AWS_ACCOUNT_ID }}"
           terraform init -no-color -backend-config="bucket=$BUCKET_NAME" -backend-config="key=state/terraform.tfstate" -backend-config="region=${{ inputs.aws_region }}"
