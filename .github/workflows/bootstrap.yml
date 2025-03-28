@@ -29,13 +29,6 @@ jobs:
         uses: actions/checkout@v4
       - name: Setup Tools
         uses: ./.github/actions/setup-tools
-      - name: Configure AWS Credentials (Static)
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-          aws-region: ${{ inputs.aws_region }}
       - name: Check if Terraform State Bucket exists
         id: check-state-bucket
         run: |
@@ -47,6 +40,14 @@ jobs:
             echo "State bucket $BUCKET_NAME does not exist, running bootstrap..."
             echo "run=true" >> $GITHUB_OUTPUT
           fi
+      - name: Configure AWS Credentials (Static)
+        if: steps.check-state-bucket.outputs.run == 'true'
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ inputs.aws_region }}
       - name: Check if website S3 bucket exists, and if so, tear it down
         if: steps.check-state-bucket.outputs.run == 'true'
         run: |
