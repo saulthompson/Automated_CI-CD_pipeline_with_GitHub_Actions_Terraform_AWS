@@ -17,8 +17,10 @@ jobs:
       commit_sha: ${{ steps.log-sha.outputs.commit_sha }}
       aws_region: ${{ steps.set-region.outputs.aws_region }}
     steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
       - name: Setup Tools
-        uses: ./.github/composite-actions/setup-tools
+        uses: ./.github/actions/setup-tools
       - name: Log Commit SHA
         id: log-sha
         run: |

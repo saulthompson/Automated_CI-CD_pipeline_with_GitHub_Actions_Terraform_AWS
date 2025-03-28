@@ -21,6 +21,8 @@ jobs:
   terraform-prep:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
       - name: Setup Tools
         uses: ./.github/actions/setup-tools
       - name: Configure AWS Credentials with OIDC

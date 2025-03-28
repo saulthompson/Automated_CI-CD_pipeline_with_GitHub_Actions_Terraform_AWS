@@ -4,8 +4,6 @@ description: Installs Terraform, Node.js, and dependencies for the workflow
 runs:
   using: composite
   steps:
-    - name: Checkout repo
-      uses: actions/checkout@v4
     - name: Install Terraform
       uses: hashicorp/setup-terraform@v3
     - name: Install Node.js for Lambda
