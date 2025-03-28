@@ -41,7 +41,7 @@ jobs:
             echo "run=true" >> $GITHUB_OUTPUT
           fi
       - name: Configure AWS Credentials (Static)
-        if: steps.check-state-bucket.outputs.run == 'true'
+        if: steps.check-state-bucket.outputs.run != 'true'
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
