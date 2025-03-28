@@ -32,7 +32,16 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
           aws-region: ${{ inputs.aws_region }}
+      - name: Cache Terraform
+        id: cache-terraform
+        uses: actions/cache@v3
+        with:
+          path: .terraform
+          key: terraform-${{ runner.os }}-${{ hashFiles('**/*.tf') }}
+          restore-keys: |
+            terraform-${{ runner.os }}-
       - name: Terraform Init
+        if: steps.cache-terraform.outputs.cache-hit != 'true'
         run: |
           BUCKET_NAME="tfs-${{ secrets.AWS_ACCOUNT_ID }}"
           terraform init -no-color -backend-config="bucket=$BUCKET_NAME" -backend-config="key=state/terraform.tfstate" -backend-config="region=${{ inputs.aws_region }}"
