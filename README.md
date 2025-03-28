@@ -1,6 +1,6 @@
 # Automated CI/CD pipeline for deploying password-protected static websites with AWS Cloudfront
 
-# Approach
+# High-Level Approach
 
 My basic idea is to fully automate the whole process of deploying and redeploying a static website with GitHub Actions from scratch, including bootstrapping of an S3 bucket for the terraform backend.
 
@@ -16,7 +16,6 @@ Cloudfront is used together with the website-hosting S3 bucket to provide a lamb
 -  The Cloudfront Lambda Edge function leverages edge caching and serverless functions
 -  GHA workflows are free for up to 2,000 minutes per month
 -  Teardown measures throughout the workflow prevent orphaned AWS resources from generating hidden costs
-
 
 # Instructions
 
@@ -53,3 +52,46 @@ I implemented OpenID Connect, which is more secure in the long run than relying 
 
 In general, I aim to follow the principle of least permissions. However, for the purposes of this project, I just universal permissions in various places in the interest of time. In production, these would need to be tightened up.
 
+# Tradeoffs
+
+## Single-File vs. Modular Workflows:
+
+Decision: Transitioned from a single apply.yml to modular workflows (setup.yml, bootstrap.yml, terraform-prep.yml, etc.).
+
+Tradeoff:
+Pro: Improved maintainability, reusability across projects, and logical separation of concerns (e.g., bootstrap vs. deploy). Improved potential for scaling.
+Con: Introduced overhead (~2-3 min) from repeated checkout, setup-tools, and terraform init due to job isolation. Some of this was mitigated by caching terraform plugins installation.
+
+## Terraform Initialization Overhead:
+
+Decision: Initially ran terraform init in multiple jobs; later optimized with actions/cache for .terraform/.
+
+Tradeoff:
+Pro: Caching reduced init time (~10-20s per job) by reusing plugins.
+Con: Still required init per job for S3 backend sync, and caching added minor complexity without fully eliminating repetition.
+
+## Bootstrap Execution Control:
+
+Decision: Added check-bootstrap to skip bootstrap if the state bucket exists, first with job-level if, then step-level conditions.
+
+Tradeoff:
+Pro (Job Skip): Avoided unnecessary checkout/setup-tools (~15-20s) when skipping.
+Con (Job Skip): Skipped downstream jobs due to needs, breaking the pipeline.
+Pro (Step Skip): Ensured downstream jobs always run, waiting for bootstrap when needed.
+Con (Step Skip): Minor overhead (~15-20s) from checkout/setup-tools even when skipping Terraform steps.
+
+
+## Dependency Management:
+
+Decision: Kept bootstrap in terraform-prep’s needs list, ensuring it waits when bootstrap runs, but completes regardless.
+
+Tradeoff:
+Pro: Guaranteed state bucket availability for downstream terraform init, preserving original flow.
+Con: Slightly less flexible than fully decoupling; downstream jobs still wait for bootstrap’s minimal run time when skipped.
+
+## Efficiency vs. Modularity:
+
+Decision: Chose modularity over a single-job approach.
+Tradeoff:
+Pro: Enabled potential reuse (e.g., terraform-prep in other projects), easier debugging per job.
+Con: Accepted ~2-3 min overhead vs. a single job (~1-2 min total), prioritizing flexibility over runtime.
