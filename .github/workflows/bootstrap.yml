@@ -25,6 +25,10 @@ jobs:
   bootstrap:
     runs-on: ubuntu-latest
     steps:
+      - name: Debug Inputs
+        run: |
+          echo "aws_region input: ${{ inputs.aws_region }}"
+          echo "github_repo input: ${{ inputs.github_repo }}"
       - name: Configure AWS Credentials (Static)
         uses: aws-actions/configure-aws-credentials@v2
         with:

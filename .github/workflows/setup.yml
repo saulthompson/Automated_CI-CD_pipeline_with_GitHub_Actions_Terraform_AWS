@@ -6,6 +6,9 @@ on:
       commit_sha:
         description: "The commit SHA of the current run"
         value: ${{ jobs.setup.outputs.commit_sha }}
+      aws_region:
+        description: "The AWS region for the workflow"
+        value: ${{ jobs.setup.outputs.aws_region }}
 
 jobs:
   setup:
@@ -35,4 +38,10 @@ jobs:
       - name: Set AWS Region
         id: set-region
         run: |
-          echo "aws_region=us-east-1" >> $GITHUB_OUTPUT
+          REGION="us-east-1"
+          echo "Setting aws_region to: $REGION"
+          echo "aws_region=$REGION" >> $GITHUB_OUTPUT
+      - name: Debug Outputs
+        run: |
+          echo "commit_sha output: ${{ steps.log-sha.outputs.commit_sha }}"
+          echo "aws_region output: ${{ steps.set-region.outputs.aws_region }}"
