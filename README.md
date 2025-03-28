@@ -1,42 +1,39 @@
-# Saul's Cloud-Deployment-Challenge
+# Automated CI/CD pipeline for deploying password-protected static websites with AWS Cloudfront
 
 # Approach
 
-My basic idea is to fully automate the whole process of deploying and redeploying our website with GitHub Actions, including bootstrapping of an S3 bucket for the terraform backend.
+My basic idea is to fully automate the whole process of deploying and redeploying a static website with GitHub Actions from scratch, including bootstrapping of an S3 bucket for the terraform backend.
 
 I configured OpenID Connect to allow GHA to assume a temporary IAM role and interact with AWS resources.
-On the first bootstrapping run, AWS credentials must be stored as GitHub Secrets. However, in subsequent runs, the credentials are no longer needed thanks to the OIDC setup.
+On the first bootstrapping run, AWS credentials must be stored as secrets GitHub Secrets. However, in subsequent runs, these credentials are no longer needed thanks to the OIDC setup.
 
-Whenever a change is pushed to this github repo, the workflow is triggered, and new content is synced to an S3 bucket where the website is hosted.
+Whenever a change is pushed to the github repo, the GitHub Actions workflow is triggered, which causes any new content in the web/ directory to be synced to an S3 bucket where the website is hosted.
 
-Cloudfront is used together with the website-hosting S3 bucket to provide a lambda edge function which implements user authentication using Basic Auth. The reason I used a lambda edge function with cloudfront, besides ease of use, is because of the cost-saving efficacy of cloudfront edge caching and serverless functions. Other cost-saving measures include the fact that GHA workflows are free for up to 2,000 minutes per month, and the teardown measures I implemented in the workflow, which prevent orphaned AWS resources.
+Cloudfront is used together with the website-hosting S3 bucket to provide a lambda edge function which implements user authentication using Basic Auth.
 
-# N.B. incomplete status of project
+# A Low-cost Soltion
 
-There are improvements that could be made to the project. For example, I use a single, monolithic GitHub Actions workflow. With more time, I would modularize it for better reusability and maintainability.
+-  The Cloudfront Lambda Edge function leverages edge caching and serverless functions
+-  GHA workflows are free for up to 2,000 minutes per month
+-  Teardown measures throughout the workflow prevent orphaned AWS resources from generating hidden costs
+
 
 # Instructions
 
-Create a GitHub repo and set it as the remote for this repository.
-
-All initial credentials are managed via GitHub Secrets.
-
-If you have root access to the AWS account you are using, you can use the credentials.sh script to set the GH secrets, and to create a dedicated IAM user with its own credentials. If you do this, make sure to first set all the relevant credentials as environment variables in the environment where the shell script executes.
-
-If you don't have root access to the AWS account you are using, simply enter your AWS credentials manually as GitHub actions secrets at https://github.com/<username>/<repo-name>/settings/secrets/actions. You will need to, at minimum, enter separate values for each of the following secret keys:
-
-- AWS_ACCOUNT_ID
-- AWS_ACCESS_KEY_ID
-- AWS_SECRET_ACCESS_KEY
-- S3_BUCKET (choose any value you like)
-- WEBSITE_USERNAME
-- WEBSITE_PASSWORD
-
- The value you set for S3_BUCKET will be the name of the S3 bucket that hosts your website.
-
-Make any desired changes to the web directory, commit, and push to the remote. This will automatically trigger the GHA workflow, which will deploy all necessary architecture on AWS. 
-
-Find your cloudfront URL in the GitHub Actions output, under "protected URL output". When you navigate to this URL in a web browser, you will be prompted for credentials. Once you enter credentials, a hash of the credentials is set as the Authorization header value for all future requests to this URL within the same browser session, allowing you to navigate to the URL in different tabs or windows without having to re-enter credentials.
+1. Clone this repository to your local IDE
+2. Add any static web content of your choosing to the web/ directory
+3. Create a GitHub repo and set it as the remote for this repository.
+4. Set GitHub Secrets values for the inital run, including:
+  - AWS_ACCOUNT_ID
+  - AWS_ACCESS_KEY_ID
+  - AWS_SECRET_ACCESS_KEY
+  - S3_BUCKET (choose any value you like)
+  - WEBSITE_USERNAME
+  - WEBSITE_PASSWORD
+5. Push your repo to GitHub
+6. Find your cloudfront URL in the GitHub Actions output, under "protected URL output"
+7. a hash of the credentials is automatically set as the Authorization header value for all future requests to this URL within the same browser session, allowing you to navigate to the URL in different tabs or windows without having to re-enter credentials.
+8. After the first run, delete all secrets from GitHub Secrets for security. All subsequent runs will automatically handle authentication between GitHub Actions and AWS using OIDC
 
 # Maintainability
 
