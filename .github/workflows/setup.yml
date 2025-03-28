@@ -18,7 +18,7 @@ jobs:
       aws_region: ${{ steps.set-region.outputs.aws_region }}
     steps:
       - name: Setup Tools
-        uses: ./.github/actions/setup-tools
+        uses: ./.github/composite-actions/setup-tools
       - name: Log Commit SHA
         id: log-sha
         run: |
