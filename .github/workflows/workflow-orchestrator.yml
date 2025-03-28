@@ -11,9 +11,6 @@ on:
     branches:
       - main
 
-env:
-  AWS_REGION: "us-east-1"
-
 permissions:
   id-token: write
   contents: read
@@ -21,6 +18,7 @@ permissions:
 jobs:
   setup:
     uses: ./.github/workflows/setup.yml
+    # Outputs aws_region for downstream jobs
 
   bootstrap:
     needs: setup
@@ -32,7 +30,7 @@ jobs:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       S3_BUCKET: ${{ secrets.S3_BUCKET }}
     with:
-      aws_region: ${{ env.AWS_REGION }}
+      aws_region: ${{ needs.setup.outputs.aws_region }}
       github_repo: ${{ github.repository }}
 
   terraform-prep:
@@ -43,7 +41,7 @@ jobs:
       WEBSITE_USERNAME: ${{ secrets.WEBSITE_USERNAME }}
       WEBSITE_PASSWORD: ${{ secrets.WEBSITE_PASSWORD }}
     with:
-      aws_region: ${{ env.AWS_REGION }}
+      aws_region: ${{ needs.setup.outputs.aws_region }}
       github_repo: ${{ github.repository }}
 
   lambda-prep:
@@ -65,7 +63,7 @@ jobs:
       WEBSITE_PASSWORD: ${{ secrets.WEBSITE_PASSWORD }}
       S3_BUCKET: ${{ secrets.S3_BUCKET }}
     with:
-      aws_region: ${{ env.AWS_REGION }}
+      aws_region: ${{ needs.setup.outputs.aws_region }}
       github_repo: ${{ github.repository }}
 
   post-deploy:
@@ -75,4 +73,4 @@ jobs:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       S3_BUCKET: ${{ secrets.S3_BUCKET }}
     with:
-      aws_region: ${{ env.AWS_REGION }}
+      aws_region: ${{ needs.setup.outputs.aws_region }}
