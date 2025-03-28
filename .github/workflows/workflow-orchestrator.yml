@@ -59,7 +59,7 @@ jobs:
       run_bootstrap: ${{ needs.check-bootstrap.outputs.run_bootstrap == 'true' }}
 
   terraform-prep:
-    needs: [setup]  # Removed bootstrap dependency
+    needs: [setup, bootstrap]  # Keep bootstrap dependency
     uses: ./.github/workflows/terraform-prep.yml
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
@@ -70,7 +70,7 @@ jobs:
       github_repo: ${{ github.repository }}
 
   lambda-prep:
-    needs: [setup, terraform-prep]  # Adjusted dependency
+    needs: [setup, terraform-prep]
     uses: ./.github/workflows/lambda-prep.yml
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
@@ -81,7 +81,7 @@ jobs:
       github_repo: ${{ github.repository }}
 
   deploy:
-    needs: [setup, terraform-prep, lambda-prep]  # Adjusted dependency
+    needs: [setup, terraform-prep, lambda-prep]
     uses: ./.github/workflows/deploy.yml
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
@@ -93,7 +93,7 @@ jobs:
       github_repo: ${{ github.repository }}
 
   post-deploy:
-    needs: [setup, deploy]  # Adjusted dependency
+    needs: [setup, deploy]
     uses: ./.github/workflows/post-deploy.yml
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}

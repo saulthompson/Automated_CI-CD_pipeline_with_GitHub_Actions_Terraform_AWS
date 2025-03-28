@@ -9,7 +9,7 @@ on:
       github_repo:
         required: true
         type: string
-      run_bootstrap: 
+      run_bootstrap:
         required: true
         type: boolean
     secrets:
@@ -27,13 +27,13 @@ on:
 jobs:
   bootstrap:
     runs-on: ubuntu-latest
-    if: inputs.run_bootstrap == true  # Job-level condition
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
       - name: Setup Tools
         uses: ./.github/actions/setup-tools
       - name: Configure AWS Credentials (Static)
+        if: inputs.run_bootstrap == true
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -41,6 +41,7 @@ jobs:
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ inputs.aws_region }}
       - name: Check if website S3 bucket exists, and if so, tear it down
+        if: inputs.run_bootstrap == true
         run: |
           source scripts/teardown.sh
           WEBSITE_BUCKET="${{ secrets.S3_BUCKET }}-${{ secrets.AWS_ACCOUNT_ID }}"
@@ -48,9 +49,13 @@ jobs:
           echo "Removing existing resources..."
           empty_and_delete_bucket "$WEBSITE_BUCKET"
       - name: Deploy S3 terraform backend and set up OIDC
+        if: inputs.run_bootstrap == true
         run: |
           cd modules/bootstrap
           terraform init -no-color || { echo "terraform init failed"; exit 1; }
           terraform apply -auto-approve -no-color -var="aws_region=${{ inputs.aws_region }}" -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="github_repo=${{ inputs.github_repo }}" || { echo "terraform apply failed"; exit 1; }
         env:
           TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
+      - name: Bootstrap Skipped (No-op)
+        if: inputs.run_bootstrap != true
+        run: echo "Bootstrap skipped as state bucket already exists."
