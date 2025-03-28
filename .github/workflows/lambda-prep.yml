@@ -6,6 +6,9 @@ on:
       github_repo:
         required: true
         type: string
+      aws_region:  # Added to match other workflows
+        required: true
+        type: string
     secrets:
       AWS_ACCOUNT_ID:
         required: true
@@ -18,10 +21,21 @@ jobs:
   lambda-prep:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
       - name: Setup Tools
         uses: ./.github/actions/setup-tools
+      - name: Configure AWS Credentials with OIDC
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
+          aws-region: ${{ inputs.aws_region }}
+      - name: Terraform Init
+        run: |
+          BUCKET_NAME="tfs-${{ secrets.AWS_ACCOUNT_ID }}"
+          terraform init -no-color -backend-config="bucket=$BUCKET_NAME" -backend-config="key=state/terraform.tfstate" -backend-config="region=${{ inputs.aws_region }}"
+        env:
+          TF_VAR_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
+          TF_VAR_website_username: ${{ secrets.WEBSITE_USERNAME }}
+          TF_VAR_website_password: ${{ secrets.WEBSITE_PASSWORD }}
       - name: Create Lambda ZIP
         run: |
           echo "Current directory: $(pwd)"

@@ -52,6 +52,7 @@ jobs:
       WEBSITE_USERNAME: ${{ secrets.WEBSITE_USERNAME }}
       WEBSITE_PASSWORD: ${{ secrets.WEBSITE_PASSWORD }}
     with:
+      aws_region: ${{ needs.setup.outputs.aws_region }}
       github_repo: ${{ github.repository }}
 
   deploy:
