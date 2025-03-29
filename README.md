@@ -11,7 +11,7 @@ Whenever a change is pushed to the github repo, the GitHub Actions workflow is t
 
 Cloudfront is used together with the website-hosting S3 bucket to provide a lambda edge function which implements user authentication using Basic Auth.
 
-# A Low-cost Soltion
+# A Low-cost Solution
 
 -  The Cloudfront Lambda Edge function leverages edge caching and serverless functions
 -  GHA workflows are free for up to 2,000 minutes per month (current as of March 2025)
